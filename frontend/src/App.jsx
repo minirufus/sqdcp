@@ -1,0 +1,61 @@
+import React, { useState, useEffect, createContext } from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
+import { api } from "./api/client";
+import Sidebar from "./components/Sidebar";
+import Login from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
+import BoardDetail from "./pages/BoardDetail";
+import Calendar from "./pages/Calendar";
+import Departments from "./pages/Departments";
+import DepartmentDetail from "./pages/DepartmentDetail";
+import Reports from "./pages/Reports";
+import Approvals from "./pages/Approvals";
+
+export const UserContext = createContext(null);
+
+function App() {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      api.getMe().then(setUser).catch(() => localStorage.removeItem("token")).finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
+  }, []);
+
+  if (loading) return <div className="loading">Загрузка...</div>;
+
+  if (!user) {
+    return (
+      <Routes>
+        <Route path="/login" element={<Login onLogin={setUser} />} />
+        <Route path="*" element={<Navigate to="/login" />} />
+      </Routes>
+    );
+  }
+
+  return (
+    <UserContext.Provider value={user}>
+      <div className="app-layout">
+        <Sidebar user={user} onLogout={() => { localStorage.removeItem("token"); setUser(null); }} />
+        <main className="main-content">
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/boards/:id" element={<BoardDetail />} />
+            <Route path="/calendar" element={<Calendar />} />
+            <Route path="/departments" element={<Departments />} />
+            <Route path="/departments/:id" element={<DepartmentDetail />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/approvals" element={<Approvals />} />
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </main>
+      </div>
+    </UserContext.Provider>
+  );
+}
+
+export default App;

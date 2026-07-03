@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+instance/
+*.db
+node_modules/
+dist/
+.env
+*.log
+package-lock.json
