@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import { ArrowLeft, ArrowDown, ArrowUp, CalendarDays, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowDown, ArrowUp, Building2, CalendarDays, Plus, Save, Trash2 } from "lucide-react";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 
 const DEFAULT_COLUMNS = [
@@ -19,6 +19,7 @@ function todayKey() {
 function normalizeRows(rows) {
   return rows.map((row, idx) => ({
     id: row.id || `new-${idx}`,
+    department_id: row.department_id || null,
     team_name: row.team_name || `Команда ${idx + 1}`,
     position: idx,
     safety: row.safety || "",
@@ -34,9 +35,11 @@ export default function BoardDetail() {
   const navigate = useNavigate();
   const [board, setBoard] = useState(null);
   const [rows, setRows] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [columns, setColumns] = useState(DEFAULT_COLUMNS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showAddDept, setShowAddDept] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [error, setError] = useState("");
 
@@ -44,10 +47,11 @@ export default function BoardDetail() {
     setLoading(true);
     setError("");
     try {
-      const data = await api.getBoard(id);
+      const [data, deptsData] = await Promise.all([api.getBoard(id), api.getDepartments()]);
       setBoard(data);
       setRows(normalizeRows(data.rows || []));
       setColumns(data.columns || DEFAULT_COLUMNS);
+      setDepartments(deptsData);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -56,10 +60,6 @@ export default function BoardDetail() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
-
-  const updateTeamName = (idx, value) => {
-    setRows(rows.map((row, rowIdx) => rowIdx === idx ? { ...row, team_name: value } : row));
-  };
 
   const updateCell = (idx, key, value) => {
     setRows(rows.map((row, rowIdx) => rowIdx === idx ? { ...row, [key]: value } : row));
@@ -75,22 +75,6 @@ export default function BoardDetail() {
     updateCell(idx, key, event.target.value);
   };
 
-  const addRow = () => {
-    setRows([
-      ...rows,
-      {
-        id: `new-${Date.now()}`,
-        team_name: `Команда ${rows.length + 1}`,
-        position: rows.length,
-        safety: "",
-        quality: "",
-        delivery: "",
-        cost: "",
-        people: "",
-      },
-    ]);
-  };
-
   const deleteRow = (idx) => {
     setRows(rows.filter((_, rowIdx) => rowIdx !== idx).map((row, rowIdx) => ({ ...row, position: rowIdx })));
   };
@@ -103,6 +87,29 @@ export default function BoardDetail() {
     setRows(newRows.map((row, i) => ({ ...row, position: i })));
   };
 
+  const addDepartmentRow = (dept) => {
+    if (rows.some((r) => r.department_id === dept.id)) return;
+    setRows([
+      ...rows,
+      {
+        id: `new-${Date.now()}`,
+        department_id: dept.id,
+        team_name: dept.name,
+        position: rows.length,
+        safety: "",
+        quality: "",
+        delivery: "",
+        cost: "",
+        people: "",
+      },
+    ]);
+    setShowAddDept(false);
+  };
+
+  const availableDepts = departments.filter(
+    (d) => !rows.some((r) => r.department_id === d.id)
+  );
+
   const saveBoard = async () => {
     setSaving(true);
     setError("");
@@ -111,6 +118,7 @@ export default function BoardDetail() {
         title: board.title,
         board_date: board.board_date || todayKey(),
         rows: rows.map((row, idx) => ({
+          department_id: row.department_id || null,
           team_name: row.team_name,
           position: idx,
           safety: row.safety,
@@ -160,7 +168,6 @@ export default function BoardDetail() {
                 rows={1}
               />
             </label>
-
           </div>
         </div>
         <div className="board-actions">
@@ -189,7 +196,7 @@ export default function BoardDetail() {
         <table className="sqdcp-table">
           <thead>
             <tr>
-              <th className="team-column">Команда</th>
+              <th className="team-column">Отдел</th>
               {columns.map((column) => (
                 <th key={column.key} className={`sqdcp-header sqdcp-header-${column.key}`}>
                   <span>{column.label}</span>
@@ -203,11 +210,18 @@ export default function BoardDetail() {
             {rows.map((row, idx) => (
               <tr key={row.id}>
                 <td className="team-cell">
-                  <input
-                    value={row.team_name}
-                    onChange={(e) => updateTeamName(idx, e.target.value)}
-                    aria-label={`Название команды ${idx + 1}`}
-                  />
+                  {row.department_id ? (
+                    <div className="team-dept-name">
+                      <Building2 size={16} style={{ verticalAlign: "middle", marginRight: 6, opacity: 0.6 }} />
+                      {row.team_name}
+                    </div>
+                  ) : (
+                    <input
+                      value={row.team_name}
+                      onChange={(e) => updateCell(idx, "team_name", e.target.value)}
+                      aria-label={`Название строки ${idx + 1}`}
+                    />
+                  )}
                 </td>
                 {columns.map((column) => (
                   <td key={column.key} className="sqdcp-edit-cell">
@@ -237,11 +251,26 @@ export default function BoardDetail() {
           </tbody>
         </table>
       </div>
-      <div className="board-bottom-actions">
-        <button className="btn btn-ghost" onClick={addRow}>
-          <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
-          Добавить команду
-        </button>
+      <div className="board-bottom-actions" style={{ display: "flex", gap: "0.75rem" }}>
+        {availableDepts.length > 0 && (
+          <div className="add-dept-wrap">
+            <button className="btn btn-ghost" onClick={() => setShowAddDept(!showAddDept)}>
+              <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
+              Добавить отдел
+            </button>
+            {showAddDept && (
+              <div className="add-dept-dropdown">
+                {availableDepts.map((d) => (
+                  <button key={d.id} className="add-dept-item" onClick={() => addDepartmentRow(d)}>
+                    <Building2 size={16} />
+                    <span>{d.name}</span>
+                    {d.head_name && <span className="dept-item-head">{d.head_name}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {showDeleteConfirm && (

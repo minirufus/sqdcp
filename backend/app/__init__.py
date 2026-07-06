@@ -72,3 +72,5 @@ def ensure_sqdcp_row_columns():
         for column in required_columns:
             if column not in existing_columns:
                 connection.execute(text(f"ALTER TABLE sqdcp_rows ADD COLUMN {column} TEXT DEFAULT ''"))
+        if "department_id" not in existing_columns:
+            connection.execute(text("ALTER TABLE sqdcp_rows ADD COLUMN department_id INTEGER REFERENCES departments(id)"))

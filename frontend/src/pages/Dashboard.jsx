@@ -6,8 +6,10 @@ import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 
 export default function Dashboard() {
   const [boards, setBoards] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [title, setTitle] = useState("");
+  const [selectedDepts, setSelectedDepts] = useState([]);
   const [boardToDelete, setBoardToDelete] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -17,7 +19,9 @@ export default function Dashboard() {
     setLoading(true);
     setError("");
     try {
-      setBoards(await api.getBoards());
+      const [boardsData, deptsData] = await Promise.all([api.getBoards(), api.getDepartments()]);
+      setBoards(boardsData);
+      setDepartments(deptsData);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -27,13 +31,29 @@ export default function Dashboard() {
 
   useEffect(() => { load(); }, []);
 
+  const toggleDept = (deptId) => {
+    setSelectedDepts((prev) =>
+      prev.includes(deptId) ? prev.filter((id) => id !== deptId) : [...prev, deptId]
+    );
+  };
+
   const createBoard = async (e) => {
     e.preventDefault();
     setError("");
-    const board = await api.createBoard({ title: title.trim() || "Новая SQDCP-доска" });
+    const board = await api.createBoard({
+      title: title.trim() || "Новая SQDCP-доска",
+      department_ids: selectedDepts,
+    });
     setShowModal(false);
     setTitle("");
+    setSelectedDepts([]);
     navigate(`/boards/${board.id}`);
+  };
+
+  const openCreateModal = () => {
+    setSelectedDepts([]);
+    setTitle("");
+    setShowModal(true);
   };
 
   const deleteBoard = async () => {
@@ -50,7 +70,7 @@ export default function Dashboard() {
           <h1>SQDCP-доски</h1>
           <p className="page-subtitle">Выберите доску или создайте новую таблицу команд.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+        <button className="btn btn-primary" onClick={openCreateModal}>
           <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
           Создать доску
         </button>
@@ -104,9 +124,26 @@ export default function Dashboard() {
                   autoFocus
                 />
               </div>
+              <div className="form-group">
+                <label>Отделы (строки таблицы)</label>
+                <div className="dept-checklist">
+                  {departments.length === 0 && <span className="text-secondary">Нет отделов. Создайте отделы в разделе «Отделы».</span>}
+                  {departments.map((d) => (
+                    <label key={d.id} className="dept-check-item">
+                      <input
+                        type="checkbox"
+                        checked={selectedDepts.includes(d.id)}
+                        onChange={() => toggleDept(d.id)}
+                      />
+                      <span>{d.name}</span>
+                      {d.head_name && <span className="dept-check-head">{d.head_name}</span>}
+                    </label>
+                  ))}
+                </div>
+              </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)}>Отмена</button>
-                <button type="submit" className="btn btn-primary">Создать</button>
+                <button type="submit" className="btn btn-primary" disabled={selectedDepts.length === 0}>Создать</button>
               </div>
             </form>
           </div>

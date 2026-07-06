@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import { Plus, Pencil, Trash2, Building2 } from "lucide-react";
+import { ExternalLink, Plus, Pencil, Trash2, Building2 } from "lucide-react";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 
 export default function Departments() {
+  const navigate = useNavigate();
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -97,7 +99,12 @@ export default function Departments() {
           <tbody>
             {departments.map((dept) => (
               <tr key={dept.id}>
-                <td><strong>{dept.name}</strong></td>
+                <td>
+                  <button className="link-btn" onClick={() => navigate(`/departments/${dept.id}`)}>
+                    <strong>{dept.name}</strong>
+                    <ExternalLink size={12} style={{ marginLeft: 6, opacity: 0.5 }} />
+                  </button>
+                </td>
                 <td className="dept-desc">{dept.description}</td>
                 <td>{dept.head_name || "—"}</td>
                 <td>{dept.deputy_name || "—"}</td>

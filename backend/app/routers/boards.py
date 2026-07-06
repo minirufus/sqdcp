@@ -18,9 +18,15 @@ SQDCP_COLUMNS = [
 
 
 def serialize_row(row):
+    dept_name = row.team_name
+    if row.department_id:
+        dept = Department.query.get(row.department_id)
+        if dept:
+            dept_name = dept.name
     return {
         "id": row.id,
-        "team_name": row.team_name,
+        "department_id": row.department_id,
+        "team_name": dept_name,
         "position": row.position,
         "safety": row.safety or "",
         "quality": row.quality or "",
@@ -34,43 +40,16 @@ def get_board_rows(board):
     return board.sqdcp_rows.order_by(SqdcpRow.position.asc(), SqdcpRow.id.asc()).all()
 
 
-def ensure_default_rows(board):
-    if board.sqdcp_rows.count() > 0:
-        return
-
-    for idx in range(3):
-        db.session.add(SqdcpRow(
-            board_id=board.id,
-            team_name=f"Команда {idx + 1}",
-            position=idx,
-        ))
-    db.session.commit()
-
-
 def serialize_board(board, include_rows=False):
     board_date = board.board_date
     if not board_date and board.created_at:
         board_date = board.created_at.date().isoformat()
-
-    department_name = ""
-    department_head = ""
-    department_deputy = ""
-    if board.department_id:
-        dept = Department.query.get(board.department_id)
-        if dept:
-            department_name = dept.name
-            department_head = dept.head_name or ""
-            department_deputy = dept.deputy_name or ""
 
     data = {
         "id": board.id,
         "title": board.title,
         "description": board.description,
         "owner_id": board.owner_id,
-        "department_id": board.department_id,
-        "department_name": department_name,
-        "department_head": department_head,
-        "department_deputy": department_deputy,
         "board_date": board_date,
         "created_at": board.created_at.isoformat() if board.created_at else None,
         "updated_at": board.updated_at.isoformat() if board.updated_at else None,
@@ -88,6 +67,57 @@ def list_boards():
     return jsonify([serialize_board(board) for board in boards])
 
 
+@boards_bp.route("/rows", methods=["GET"])
+@jwt_required()
+def list_all_rows():
+    rows = SqdcpRow.query.order_by(SqdcpRow.board_id, SqdcpRow.position).all()
+    result = []
+    for row in rows:
+        board = Board.query.get(row.board_id)
+        if not board:
+            continue
+        dept = Department.query.get(row.department_id) if row.department_id else None
+        result.append({
+            "id": row.id,
+            "board_id": row.board_id,
+            "board_title": board.title,
+            "board_date": board.board_date or "",
+            "department_id": row.department_id,
+            "department_name": dept.name if dept else row.team_name,
+            "position": row.position,
+            "safety": row.safety or "",
+            "quality": row.quality or "",
+            "delivery": row.delivery or "",
+            "cost": row.cost or "",
+            "people": row.people or "",
+        })
+    return jsonify(result)
+
+
+@boards_bp.route("/by-department/<int:department_id>", methods=["GET"])
+@jwt_required()
+def list_rows_by_department(department_id):
+    rows = SqdcpRow.query.filter_by(department_id=department_id).order_by(SqdcpRow.board_id, SqdcpRow.position).all()
+    result = []
+    for row in rows:
+        board = Board.query.get(row.board_id)
+        if not board:
+            continue
+        result.append({
+            "id": row.id,
+            "board_id": row.board_id,
+            "board_title": board.title,
+            "board_date": board.board_date or "",
+            "position": row.position,
+            "safety": row.safety or "",
+            "quality": row.quality or "",
+            "delivery": row.delivery or "",
+            "cost": row.cost or "",
+            "people": row.people or "",
+        })
+    return jsonify(result)
+
+
 @boards_bp.route("", methods=["POST"])
 @jwt_required()
 def create_board():
@@ -103,18 +133,29 @@ def create_board():
         title=title,
         description=data.get("description", ""),
         owner_id=user_id,
-        department_id=data.get("department_id") or None,
         board_date=board_date,
     )
     db.session.add(board)
     db.session.flush()
 
-    for idx in range(3):
-        db.session.add(SqdcpRow(
-            board_id=board.id,
-            team_name=f"Команда {idx + 1}",
-            position=idx,
-        ))
+    department_ids = data.get("department_ids")
+    if isinstance(department_ids, list) and len(department_ids) > 0:
+        for idx, dept_id in enumerate(department_ids):
+            dept = Department.query.get(dept_id)
+            if dept:
+                db.session.add(SqdcpRow(
+                    board_id=board.id,
+                    department_id=dept.id,
+                    team_name=dept.name,
+                    position=idx,
+                ))
+    else:
+        for idx in range(3):
+            db.session.add(SqdcpRow(
+                board_id=board.id,
+                team_name=f"Команда {idx + 1}",
+                position=idx,
+            ))
 
     db.session.commit()
     return jsonify(serialize_board(board, include_rows=True)), 201
@@ -127,7 +168,6 @@ def get_board(board_id):
     if not board:
         return jsonify({"error": "Доска не найдена"}), 404
 
-    ensure_default_rows(board)
     return jsonify(serialize_board(board, include_rows=True))
 
 
@@ -163,19 +203,18 @@ def update_board(board_id):
     if "board_date" in data:
         board.board_date = normalize_board_date(data.get("board_date")) or date.today().isoformat()
 
-    if "department_id" in data:
-        board.department_id = data["department_id"] or None
-
     incoming_rows = data.get("rows")
     if isinstance(incoming_rows, list):
         SqdcpRow.query.filter_by(board_id=board.id).delete()
         for idx, row in enumerate(incoming_rows):
             team_name = (row.get("team_name") or "").strip()
-            if not team_name:
+            dept_id = row.get("department_id")
+            if not dept_id and not team_name:
                 team_name = f"Команда {idx + 1}"
             db.session.add(SqdcpRow(
                 board_id=board.id,
-                team_name=team_name,
+                department_id=dept_id or None,
+                team_name=team_name or f"Команда {idx + 1}",
                 position=idx,
                 safety=row.get("safety") or "",
                 quality=row.get("quality") or "",

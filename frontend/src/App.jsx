@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import BoardDetail from "./pages/BoardDetail";
 import Calendar from "./pages/Calendar";
 import Departments from "./pages/Departments";
+import DepartmentDetail from "./pages/DepartmentDetail";
 
 export const UserContext = createContext(null);
 
@@ -52,6 +53,7 @@ function App() {
             <Route path="/boards" element={<Dashboard />} />
             <Route path="/boards/:id" element={<BoardDetail />} />
             <Route path="/departments" element={<Departments />} />
+            <Route path="/departments/:id" element={<DepartmentDetail />} />
             <Route path="/calendar" element={<Calendar />} />
             <Route path="*" element={<Navigate to="/boards" />} />
           </Routes>
