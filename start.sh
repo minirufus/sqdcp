@@ -50,66 +50,66 @@ echo "  OK - http://localhost:8000"
 
 ensure_node() {
   if command -v node &>/dev/null && command -v npm &>/dev/null; then
+    NODE_VER="$(node --version | cut -d'.' -f1 | tr -d 'v')"
+    if [[ "$NODE_VER" -lt 18 ]]; then
+      echo "  WARNING: Node.js $(node --version) слишком старый. Нужен >= 18."
+    fi
+    echo "  Found: node $(node --version)"
     return 0
   fi
 
-  # --- Search nvm-managed Node ---
+  # --- nvm: find latest installed version ---
   NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
-  if [[ -s "$NVM_DIR/nvm.sh" ]]; then
-    # shellcheck source=/dev/null
-    source "$NVM_DIR/nvm.sh"
-    local_version="$(nvm current 2>/dev/null | tr -d '[:space:]')"
-    if [[ "$local_version" != "none" ]] && [[ "$local_version" != "system" ]] && [[ -n "$local_version" ]] && [[ -d "$NVM_DIR/versions/node/$local_version/bin" ]]; then
-      PATH="$NVM_DIR/versions/node/$local_version/bin:$PATH"
+  if [[ -d "$NVM_DIR/versions/node" ]]; then
+    for _nv in "$NVM_DIR/versions/node"/*/bin; do
+      if [[ -x "$_nv/node" ]] && [[ -x "$_nv/npm" ]]; then
+        PATH="$_nv:$PATH"
+        export PATH
+        echo "  Found: node $("$_nv/node" --version) (nvm)"
+        return 0
+      fi
+    done
+  fi
+
+  # --- fnm ---
+  for _fd in \
+    "$HOME/.local/share/fnm/aliases/default/bin" \
+    "$HOME/.fnm/aliases/default/bin" \
+    "$HOME/.local/share/fnm/node-versions"/*/installation/bin \
+    "$HOME/.fnm/node-versions"/*/installation/bin; do
+    if [[ -x "$_fd/node" ]] && [[ -x "$_fd/npm" ]]; then
+      PATH="$_fd:$PATH"
       export PATH
+      echo "  Found: node $("$_fd/node" --version) (fnm)"
+      return 0
     fi
-  fi
+  done
 
-  if command -v node &>/dev/null && command -v npm &>/dev/null; then
-    return 0
-  fi
-
-  # --- Search fnm-managed Node ---
-  if command -v fnm &>/dev/null; then
-    fnm_dir="$(fnm current 2>/dev/null | tr -d '[:space:]')"
-    if [[ -z "$fnm_dir" ]] || [[ ! -d "$fnm_dir" ]]; then
-      fnm_dir="$HOME/.local/share/fnm/aliases/default/bin"
-    else
-      fnm_dir="$fnm_dir/bin"
-    fi
-    if [[ -x "$fnm_dir/node" ]] && [[ -x "$fnm_dir/npm" ]]; then
-      PATH="$fnm_dir:$PATH"
+  # --- brew / system ---
+  for _bd in /opt/homebrew/bin /usr/local/bin /opt/homebrew/opt/node/bin; do
+    if [[ -x "$_bd/node" ]] && [[ -x "$_bd/npm" ]]; then
+      PATH="$_bd:$PATH"
       export PATH
+      echo "  Found: node $("$_bd/node" --version) (brew)"
+      return 0
     fi
-  fi
+  done
 
-  if command -v node &>/dev/null && command -v npm &>/dev/null; then
-    return 0
-  fi
-
-  # --- Auto-install via nvm ---
+  # --- nvm auto-install ---
   if [[ -s "$NVM_DIR/nvm.sh" ]]; then
     echo "  Installing Node.js via nvm..."
     # shellcheck source=/dev/null
     source "$NVM_DIR/nvm.sh"
-    nvm install --lts --latest-npm
-    nvm alias default "$(nvm current 2>/dev/null)"
-    PATH="$NVM_DIR/versions/node/$(nvm current 2>/dev/null | tr -d '[:space:]')/bin:$PATH"
-    export PATH
+    nvm install --lts --latest-npm || true
+    for _nv in "$NVM_DIR/versions/node"/*/bin; do
+      if [[ -x "$_nv/node" ]] && [[ -x "$_nv/npm" ]]; then
+        PATH="$_nv:$PATH"
+        export PATH
+        echo "  Installed: node $("$_nv/node" --version)"
+        return 0
+      fi
+    done
   fi
-
-  if command -v node &>/dev/null && command -v npm &>/dev/null; then
-    return 0
-  fi
-
-  # --- Fallback: common macOS paths ---
-  for _dir in /opt/homebrew/bin /usr/local/bin /opt/homebrew/opt/node/bin; do
-    if [[ -x "$_dir/node" ]] && [[ -x "$_dir/npm" ]]; then
-      PATH="$_dir:$PATH"
-      export PATH
-      return 0
-    fi
-  done
 
   echo "  ERROR: Node.js не найден."
   echo "  Установите вручную: https://nodejs.org"
