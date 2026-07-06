@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import { ArrowLeft, Building2, CalendarDays, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowDown, ArrowUp, Building2, CalendarDays, Plus, Save, Trash2 } from "lucide-react";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 
 const DEFAULT_COLUMNS = [
@@ -95,6 +95,14 @@ export default function BoardDetail() {
 
   const deleteRow = (idx) => {
     setRows(rows.filter((_, rowIdx) => rowIdx !== idx).map((row, rowIdx) => ({ ...row, position: rowIdx })));
+  };
+
+  const moveRow = (idx, direction) => {
+    const target = idx + direction;
+    if (target < 0 || target >= rows.length) return;
+    const newRows = [...rows];
+    [newRows[idx], newRows[target]] = [newRows[target], newRows[idx]];
+    setRows(newRows.map((row, i) => ({ ...row, position: i })));
   };
 
   const saveBoard = async () => {
@@ -238,9 +246,17 @@ export default function BoardDetail() {
                   </td>
                 ))}
                 <td className="row-action-cell">
-                  <button className="btn btn-ghost btn-sm" onClick={() => deleteRow(idx)} disabled={rows.length <= 1}>
-                    <Trash2 size={14} />
-                  </button>
+                  <div className="row-actions">
+                    <button className="btn btn-ghost btn-sm" onClick={() => moveRow(idx, -1)} disabled={idx === 0}>
+                      <ArrowUp size={14} />
+                    </button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => moveRow(idx, 1)} disabled={idx === rows.length - 1}>
+                      <ArrowDown size={14} />
+                    </button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => deleteRow(idx)} disabled={rows.length <= 1}>
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

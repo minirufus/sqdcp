@@ -625,11 +625,18 @@ td { font-size: 0.9rem; }
 }
 
 .row-action-column {
-  width: 84px;
+  width: 120px;
 }
 
 .row-action-cell {
   text-align: center;
+}
+
+.row-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .board-actions {
