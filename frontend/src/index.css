@@ -472,14 +472,15 @@ td { font-size: 0.9rem; }
 }
 
 .sqdcp-table {
-  min-width: 1120px;
+  width: 100%;
+  min-width: 1280px;
   table-layout: fixed;
 }
 
 .sqdcp-table th,
 .sqdcp-table td {
   border-right: 1px solid var(--border);
-  vertical-align: middle;
+  vertical-align: top;
 }
 
 .sqdcp-table th:last-child,
@@ -558,59 +559,84 @@ td { font-size: 0.9rem; }
 }
 
 .team-column {
-  width: 240px;
+  width: 168px;
 }
 
-.team-cell input {
+.team-cell {
+  padding: 0.5rem;
+}
+
+.team-cell textarea {
   width: 100%;
-  min-height: 58px;
-  padding: 0.75rem;
-  background: var(--bg-primary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  min-height: 116px;
+  padding: 0.8rem 0.65rem;
+  overflow: hidden;
+  resize: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
   color: var(--text-primary);
+  font: inherit;
   font-size: 0.95rem;
+  line-height: 1.35;
   text-align: center;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
-.team-cell input:focus {
+.team-cell textarea:hover {
+  background: rgba(255,255,255,0.025);
+  border-color: rgba(255,255,255,0.08);
+}
+
+.team-cell textarea:focus {
   outline: none;
   border-color: var(--accent);
+  background: rgba(15,23,42,0.35);
+  box-shadow: 0 0 0 1px rgba(59,130,246,0.16);
 }
 
 .sqdcp-edit-cell {
-  padding: 0.65rem;
+  padding: 0.35rem;
+  vertical-align: top;
 }
 
 .sqdcp-edit-cell textarea {
   width: 100%;
-  min-height: 112px;
-  padding: 0.9rem;
+  min-height: 132px;
+  padding: 0.8rem;
   overflow: hidden;
   resize: none;
-  background: var(--bg-primary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
   color: var(--text-primary);
   font: inherit;
   font-size: 1rem;
   line-height: 1.35;
   text-align: center;
-  align-content: center;
+  vertical-align: top;
+}
+
+.sqdcp-edit-cell textarea:hover {
+  background: rgba(255,255,255,0.025);
+  border-color: rgba(255,255,255,0.08);
 }
 
 .sqdcp-edit-cell textarea:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px rgba(59,130,246,0.25);
+  background: rgba(15,23,42,0.35);
+  box-shadow: 0 0 0 1px rgba(59,130,246,0.16);
 }
 
 .row-action-column {
-  width: 84px;
+  width: 64px;
 }
 
 .row-action-cell {
   text-align: center;
+  padding-top: 0.65rem;
 }
 
 .board-actions {

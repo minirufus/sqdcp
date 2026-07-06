@@ -264,10 +264,15 @@ export default function BoardDetail() {
             {rows.map((row, idx) => (
               <tr key={row.id}>
                 <td className="team-cell">
-                  <input
+                  <textarea
                     value={row.team_name}
-                    onChange={(e) => updateTeamName(idx, e.target.value)}
+                    onChange={(e) => {
+                      resizeTextarea(e.target);
+                      updateTeamName(idx, e.target.value);
+                    }}
+                    ref={(element) => { if (element) resizeTextarea(element); }}
                     aria-label={`Название команды ${idx + 1}`}
+                    rows={1}
                   />
                 </td>
                 {columns.map((column) => (
