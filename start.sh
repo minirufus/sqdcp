@@ -6,17 +6,6 @@ BACKEND="$ROOT/backend"
 FRONTEND="$ROOT/frontend"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 
-# Common Node.js locations on macOS (Apple Silicon + Intel)
-for _node_dir in \
-  /opt/homebrew/bin \
-  /opt/homebrew/opt/node/bin \
-  /usr/local/bin; do
-  if [[ -d "$_node_dir" ]]; then
-    PATH="$_node_dir:$PATH"
-  fi
-done
-export PATH
-
 BACKEND_PID=""
 FRONTEND_PID=""
 
@@ -60,67 +49,69 @@ done
 echo "  OK - http://localhost:8000"
 
 ensure_node() {
-  # If node/npm already available, we're good
   if command -v node &>/dev/null && command -v npm &>/dev/null; then
     return 0
   fi
 
-  # --- nvm ---
-  export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+  # --- Search nvm-managed Node ---
+  NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
   if [[ -s "$NVM_DIR/nvm.sh" ]]; then
+    # shellcheck source=/dev/null
     source "$NVM_DIR/nvm.sh"
-    # nvm may have a default alias; apply it
-    nvm use default 2>/dev/null || true
+    local_version="$(nvm current 2>/dev/null | tr -d '[:space:]')"
+    if [[ "$local_version" != "none" ]] && [[ "$local_version" != "system" ]] && [[ -n "$local_version" ]] && [[ -d "$NVM_DIR/versions/node/$local_version/bin" ]]; then
+      PATH="$NVM_DIR/versions/node/$local_version/bin:$PATH"
+      export PATH
+    fi
   fi
 
   if command -v node &>/dev/null && command -v npm &>/dev/null; then
     return 0
   fi
 
-  # --- fnm ---
+  # --- Search fnm-managed Node ---
   if command -v fnm &>/dev/null; then
-    # Try different fnm env variants
-    eval "$(fnm env 2>/dev/null)" || eval "$(fnm env --use-on-cd 2>/dev/null)" || true
-    # fnm may have a .node-version or .nvmrc; use the current alias
-    fnm use 2>/dev/null || true
+    fnm_dir="$(fnm current 2>/dev/null | tr -d '[:space:]')"
+    if [[ -z "$fnm_dir" ]] || [[ ! -d "$fnm_dir" ]]; then
+      fnm_dir="$HOME/.local/share/fnm/aliases/default/bin"
+    else
+      fnm_dir="$fnm_dir/bin"
+    fi
+    if [[ -x "$fnm_dir/node" ]] && [[ -x "$fnm_dir/npm" ]]; then
+      PATH="$fnm_dir:$PATH"
+      export PATH
+    fi
   fi
 
   if command -v node &>/dev/null && command -v npm &>/dev/null; then
     return 0
   fi
 
-  # --- nvm auto-install ---
+  # --- Auto-install via nvm ---
   if [[ -s "$NVM_DIR/nvm.sh" ]]; then
     echo "  Installing Node.js via nvm..."
+    # shellcheck source=/dev/null
     source "$NVM_DIR/nvm.sh"
     nvm install --lts --latest-npm
-    nvm alias default "$(nvm current 2>/dev/null || echo 'lts/*')"
-    # ensure node/npm are on PATH from nvm
-    if command -v node &>/dev/null && command -v npm &>/dev/null; then
-      return 0
-    fi
+    nvm alias default "$(nvm current 2>/dev/null)"
+    PATH="$NVM_DIR/versions/node/$(nvm current 2>/dev/null | tr -d '[:space:]')/bin:$PATH"
+    export PATH
   fi
 
-  # --- Homebrew auto-install ---
-  if command -v brew &>/dev/null; then
-    echo "  Installing Node.js via Homebrew..."
-    brew install node
-    # brew may install to /opt/homebrew/bin (Apple Silicon) or /usr/local/bin (Intel)
-    for _dir in /opt/homebrew/bin /usr/local/bin /opt/homebrew/opt/node/bin; do
-      if [[ -x "$_dir/node" ]] && [[ -x "$_dir/npm" ]]; then
-        PATH="$_dir:$PATH"
-        export PATH
-        return 0
-      fi
-    done
-    # Last resort: re-source PATH from brew
-    eval "$(brew shellenv 2>/dev/null)" || true
-    if command -v node &>/dev/null && command -v npm &>/dev/null; then
-      return 0
-    fi
+  if command -v node &>/dev/null && command -v npm &>/dev/null; then
+    return 0
   fi
 
-  echo "  ERROR: Node.js не найден и не удалось установить автоматически."
+  # --- Fallback: common macOS paths ---
+  for _dir in /opt/homebrew/bin /usr/local/bin /opt/homebrew/opt/node/bin; do
+    if [[ -x "$_dir/node" ]] && [[ -x "$_dir/npm" ]]; then
+      PATH="$_dir:$PATH"
+      export PATH
+      return 0
+    fi
+  done
+
+  echo "  ERROR: Node.js не найден."
   echo "  Установите вручную: https://nodejs.org"
   exit 1
 }
