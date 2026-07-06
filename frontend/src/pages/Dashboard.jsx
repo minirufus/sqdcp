@@ -1,15 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import { Plus, Columns3, Trash2, Building2 } from "lucide-react";
+import { Plus, Columns3, Trash2 } from "lucide-react";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 
 export default function Dashboard() {
   const [boards, setBoards] = useState([]);
-  const [departments, setDepartments] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [title, setTitle] = useState("");
-  const [boardDeptId, setBoardDeptId] = useState("");
   const [boardToDelete, setBoardToDelete] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -19,9 +17,7 @@ export default function Dashboard() {
     setLoading(true);
     setError("");
     try {
-      const [boardsData, deptsData] = await Promise.all([api.getBoards(), api.getDepartments()]);
-      setBoards(boardsData);
-      setDepartments(deptsData);
+      setBoards(await api.getBoards());
     } catch (err) {
       setError(err.message);
     } finally {
@@ -34,13 +30,9 @@ export default function Dashboard() {
   const createBoard = async (e) => {
     e.preventDefault();
     setError("");
-    const board = await api.createBoard({
-      title: title.trim() || "Новая SQDCP-доска",
-      department_id: boardDeptId ? Number(boardDeptId) : null,
-    });
+    const board = await api.createBoard({ title: title.trim() || "Новая SQDCP-доска" });
     setShowModal(false);
     setTitle("");
-    setBoardDeptId("");
     navigate(`/boards/${board.id}`);
   };
 
@@ -79,17 +71,6 @@ export default function Dashboard() {
             <div key={board.id} className="card board-card board-card-button" onClick={() => navigate(`/boards/${board.id}`)} role="button" tabIndex={0}>
               <div className="board-card-title-area">
                 <h3>{board.title}</h3>
-                {board.department_name && (
-                  <div className="board-card-dept">
-                    <Building2 size={14} style={{ verticalAlign: "middle", marginRight: 4 }} />
-                    {board.department_name}
-                    {board.department_head && (
-                      <span className="board-card-head">
-                        {board.department_head}
-                      </span>
-                    )}
-                  </div>
-                )}
               </div>
               <div className="board-card-footer">
                 <button
@@ -122,13 +103,6 @@ export default function Dashboard() {
                   placeholder="Например: Проект внедрения"
                   autoFocus
                 />
-              </div>
-              <div className="form-group">
-                <label>Отдел</label>
-                <select value={boardDeptId} onChange={(e) => setBoardDeptId(e.target.value)}>
-                  <option value="">Без отдела</option>
-                  {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                </select>
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)}>Отмена</button>

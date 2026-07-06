@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import { ArrowLeft, ArrowDown, ArrowUp, Building2, CalendarDays, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowDown, ArrowUp, CalendarDays, Plus, Save, Trash2 } from "lucide-react";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 
 const DEFAULT_COLUMNS = [
@@ -35,7 +35,6 @@ export default function BoardDetail() {
   const [board, setBoard] = useState(null);
   const [rows, setRows] = useState([]);
   const [columns, setColumns] = useState(DEFAULT_COLUMNS);
-  const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -45,11 +44,10 @@ export default function BoardDetail() {
     setLoading(true);
     setError("");
     try {
-      const [data, deptsData] = await Promise.all([api.getBoard(id), api.getDepartments()]);
+      const data = await api.getBoard(id);
       setBoard(data);
       setRows(normalizeRows(data.rows || []));
       setColumns(data.columns || DEFAULT_COLUMNS);
-      setDepartments(deptsData);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -112,7 +110,6 @@ export default function BoardDetail() {
       const data = await api.updateBoard(id, {
         title: board.title,
         board_date: board.board_date || todayKey(),
-        department_id: board.department_id || null,
         rows: rows.map((row, idx) => ({
           team_name: row.team_name,
           position: idx,
@@ -163,13 +160,7 @@ export default function BoardDetail() {
                 rows={1}
               />
             </label>
-            <label className="board-dept-select">
-              Отдел
-              <select value={board.department_id || ""} onChange={(e) => setBoard({ ...board, department_id: e.target.value ? Number(e.target.value) : null })}>
-                <option value="">Без отдела</option>
-                {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
-            </label>
+
           </div>
         </div>
         <div className="board-actions">
@@ -193,23 +184,6 @@ export default function BoardDetail() {
       </div>
 
       {error && <div className="form-error">{error}</div>}
-
-      {board.department_name && (
-        <div className="board-dept-info">
-          <Building2 size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
-          <strong>{board.department_name}</strong>
-          {board.department_head && (
-            <span style={{ marginLeft: "1.5rem" }}>
-              Начальник: {board.department_head}
-            </span>
-          )}
-          {board.department_deputy && (
-            <span style={{ marginLeft: "1.5rem" }}>
-              Зам. начальника: {board.department_deputy}
-            </span>
-          )}
-        </div>
-      )}
 
       <div className="sqdcp-table-wrap">
         <table className="sqdcp-table">

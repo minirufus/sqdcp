@@ -897,50 +897,6 @@ td { font-size: 0.9rem; }
 }
 
 /* Departments */
-.board-card-dept {
-  font-size: 0.8rem;
-  color: var(--accent);
-  margin-top: 0.35rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.board-card-head {
-  color: var(--text-secondary);
-  font-size: 0.78rem;
-}
-
-.board-dept-info {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  margin-bottom: 1rem;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-  flex-wrap: wrap;
-}
-
-.board-dept-select {
-  margin-top: 0.25rem;
-}
-
-.board-dept-select select {
-  width: 100%;
-  padding: 0.45rem;
-  background: var(--bg-primary);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 0.85rem;
-}
-
 .dept-table th:nth-child(2),
 .dept-table td:nth-child(2) {
   width: 40%;
