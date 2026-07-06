@@ -1,6 +1,5 @@
 import React, { useState, useEffect, createContext } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import { Moon, Sun } from "lucide-react";
 import { api } from "./api/client";
 import Sidebar from "./components/Sidebar";
 import Login from "./pages/Login";
@@ -46,10 +45,7 @@ function App() {
   return (
     <UserContext.Provider value={user}>
       <div className="app-layout">
-        <Sidebar user={user} onLogout={() => { localStorage.removeItem("token"); setUser(null); }} />
-        <button className="theme-toggle-fab" onClick={toggleTheme} aria-label="Переключить тему">
-          {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
-        </button>
+        <Sidebar user={user} theme={theme} onToggleTheme={toggleTheme} onLogout={() => { localStorage.removeItem("token"); setUser(null); }} />
         <main className="main-content">
           <Routes>
             <Route path="/" element={<Navigate to="/boards" />} />
