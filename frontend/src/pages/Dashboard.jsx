@@ -6,10 +6,8 @@ import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 
 export default function Dashboard() {
   const [boards, setBoards] = useState([]);
-  const [departments, setDepartments] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [title, setTitle] = useState("");
-  const [selectedDepts, setSelectedDepts] = useState([]);
   const [boardToDelete, setBoardToDelete] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -19,9 +17,8 @@ export default function Dashboard() {
     setLoading(true);
     setError("");
     try {
-      const [boardsData, deptsData] = await Promise.all([api.getBoards(), api.getDepartments()]);
+      const boardsData = await api.getBoards();
       setBoards(boardsData);
-      setDepartments(deptsData);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -31,46 +28,20 @@ export default function Dashboard() {
 
   useEffect(() => { load(); }, []);
 
-  const toggleDept = (deptId) => {
-    setSelectedDepts((prev) =>
-      prev.includes(deptId) ? prev.filter((id) => id !== deptId) : [...prev, deptId]
-    );
-  };
-
   const createBoard = async (e) => {
     e.preventDefault();
     setError("");
     const board = await api.createBoard({
       title: title.trim() || "Новая SQDCP-доска",
-      department_ids: selectedDepts,
     });
     setShowModal(false);
     setTitle("");
-    setSelectedDepts([]);
     navigate(`/boards/${board.id}`);
   };
 
-  const [deptForm, setDeptForm] = useState({ name: "", head_name: "", deputy_name: "" });
-  const [showDeptForm, setShowDeptForm] = useState(false);
-
   const openCreateModal = () => {
-    setSelectedDepts([]);
     setTitle("");
-    setDeptForm({ name: "", head_name: "", deputy_name: "" });
-    setShowDeptForm(false);
     setShowModal(true);
-  };
-
-  const createDeptInline = async (e) => {
-    e.preventDefault();
-    setError("");
-    const name = deptForm.name.trim();
-    if (!name) { setError("Введите название отдела"); return; }
-    const created = await api.createDepartment(deptForm);
-    await load();
-    setSelectedDepts((prev) => [...prev, created.id]);
-    setDeptForm({ name: "", head_name: "", deputy_name: "" });
-    setShowDeptForm(false);
   };
 
   const deleteBoard = async () => {
@@ -141,49 +112,9 @@ export default function Dashboard() {
                   autoFocus
                 />
               </div>
-              <div className="form-group">
-                <label>Отделы (строки таблицы)</label>
-                {departments.length > 0 ? (
-                  <div className="dept-checklist">
-                    {departments.map((d) => (
-                      <label key={d.id} className="dept-check-item">
-                        <input
-                          type="checkbox"
-                          checked={selectedDepts.includes(d.id)}
-                          onChange={() => toggleDept(d.id)}
-                        />
-                        <span>{d.name}</span>
-                        {d.head_name && <span className="dept-check-head">{d.head_name}</span>}
-                      </label>
-                    ))}
-                    <button type="button" className="btn btn-ghost btn-sm" style={{ marginTop: "0.35rem" }} onClick={() => { setShowDeptForm(!showDeptForm); setDeptForm({ name: "", head_name: "", deputy_name: "" }); }}>
-                      + Создать новый отдел
-                    </button>
-                  </div>
-                ) : (
-                  <div className="dept-create-inline">
-                    <p className="text-secondary" style={{ marginBottom: "0.5rem" }}>Отделов пока нет. Создайте первый отдел:</p>
-                    <input value={deptForm.name} onChange={(e) => setDeptForm({ ...deptForm, name: e.target.value })} placeholder="Название отдела" />
-                    <input value={deptForm.head_name} onChange={(e) => setDeptForm({ ...deptForm, head_name: e.target.value })} placeholder="Начальник (Фамилия И.О.)" />
-                    <input value={deptForm.deputy_name} onChange={(e) => setDeptForm({ ...deptForm, deputy_name: e.target.value })} placeholder="Зам. начальника (опционально)" />
-                    <button type="button" className="btn btn-primary btn-sm" style={{ marginTop: "0.5rem" }} onClick={createDeptInline}>Создать отдел</button>
-                  </div>
-                )}
-                {showDeptForm && departments.length > 0 && (
-                  <div className="dept-create-inline" style={{ marginTop: "0.5rem" }}>
-                    <input value={deptForm.name} onChange={(e) => setDeptForm({ ...deptForm, name: e.target.value })} placeholder="Название отдела" />
-                    <input value={deptForm.head_name} onChange={(e) => setDeptForm({ ...deptForm, head_name: e.target.value })} placeholder="Начальник (Фамилия И.О.)" />
-                    <input value={deptForm.deputy_name} onChange={(e) => setDeptForm({ ...deptForm, deputy_name: e.target.value })} placeholder="Зам. начальника (опционально)" />
-                    <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
-                      <button type="button" className="btn btn-primary btn-sm" onClick={createDeptInline}>Создать</button>
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowDeptForm(false)}>Отмена</button>
-                    </div>
-                  </div>
-                )}
-              </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)}>Отмена</button>
-                <button type="submit" className="btn btn-primary" disabled={selectedDepts.length === 0}>Создать</button>
+                <button type="submit" className="btn btn-primary">Создать</button>
               </div>
             </form>
           </div>

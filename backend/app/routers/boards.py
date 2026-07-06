@@ -149,13 +149,6 @@ def create_board():
                     team_name=dept.name,
                     position=idx,
                 ))
-    else:
-        for idx in range(3):
-            db.session.add(SqdcpRow(
-                board_id=board.id,
-                team_name=f"Команда {idx + 1}",
-                position=idx,
-            ))
 
     db.session.commit()
     return jsonify(serialize_board(board, include_rows=True)), 201

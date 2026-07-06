@@ -283,9 +283,6 @@ export default function BoardDetail() {
               {availableDepts.length === 0 && departments.length === 0 && (
                 <div className="add-dept-empty">Нет отделов. Создайте первый.</div>
               )}
-              {availableDepts.length === 0 && departments.length > 0 && (
-                <div className="add-dept-empty">Все отделы уже добавлены</div>
-              )}
               {availableDepts.map((d) => (
                 <button key={d.id} className="add-dept-item" onClick={() => addDepartmentRow(d)}>
                   <Building2 size={16} />
