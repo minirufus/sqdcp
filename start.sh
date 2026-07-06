@@ -45,7 +45,8 @@ echo "[3/4] Checking frontend deps..."
 cd "$FRONTEND"
 if [[ ! -d "node_modules" ]]; then
   if ! command -v npm &>/dev/null; then
-    echo "  ERROR: npm not found. Install Node.js from https://nodejs.org"
+    echo "  ERROR: Node.js/npm не найден."
+    echo "  Установите Node.js: https://nodejs.org (или через brew: brew install node)"
     exit 1
   fi
   npm install
