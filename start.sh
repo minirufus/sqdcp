@@ -41,14 +41,53 @@ python run.py &
 BACKEND_PID=$!
 echo "  OK - http://localhost:8000"
 
+ensure_node() {
+  if command -v node &>/dev/null && command -v npm &>/dev/null; then
+    return 0
+  fi
+
+  # init nvm if installed
+  export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+  if [[ -s "$NVM_DIR/nvm.sh" ]]; then
+    source "$NVM_DIR/nvm.sh"
+  fi
+
+  if command -v node &>/dev/null && command -v npm &>/dev/null; then
+    return 0
+  fi
+
+  # try fnm
+  if command -v fnm &>/dev/null; then
+    eval "$(fnm env --use-on-cd 2>/dev/null)"
+    if command -v node &>/dev/null && command -v npm &>/dev/null; then
+      return 0
+    fi
+  fi
+
+  # auto-install via nvm
+  if [[ -s "$NVM_DIR/nvm.sh" ]]; then
+    echo "  Installing Node.js via nvm..."
+    source "$NVM_DIR/nvm.sh"
+    nvm install --lts --latest-npm
+    return 0
+  fi
+
+  # auto-install via brew
+  if command -v brew &>/dev/null; then
+    echo "  Installing Node.js via Homebrew..."
+    brew install node
+    return 0
+  fi
+
+  echo "  ERROR: Node.js не найден и не удалось установить автоматически."
+  echo "  Установите вручную: https://nodejs.org"
+  exit 1
+}
+
 echo "[3/4] Checking frontend deps..."
 cd "$FRONTEND"
+ensure_node
 if [[ ! -d "node_modules" ]]; then
-  if ! command -v npm &>/dev/null; then
-    echo "  ERROR: Node.js/npm не найден."
-    echo "  Установите Node.js: https://nodejs.org (или через brew: brew install node)"
-    exit 1
-  fi
   npm install
 fi
 echo "  OK"
