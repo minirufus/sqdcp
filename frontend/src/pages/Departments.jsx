@@ -13,6 +13,7 @@ export default function Departments() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ name: "", description: "", head_name: "", deputy_name: "" });
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteAllConfirm, setDeleteAllConfirm] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -63,6 +64,12 @@ export default function Departments() {
     load();
   };
 
+  const deleteAll = async () => {
+    await api.deleteAllDepartments();
+    setDeleteAllConfirm(false);
+    load();
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -70,10 +77,18 @@ export default function Departments() {
           <h1>Отделы</h1>
           <p className="page-subtitle">Управление отделами, начальниками и заместителями.</p>
         </div>
-        <button className="btn btn-primary" onClick={openCreate}>
-          <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
-          Добавить отдел
-        </button>
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <button className="btn btn-primary" onClick={openCreate}>
+            <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
+            Добавить отдел
+          </button>
+          {departments.length > 0 && (
+            <button className="btn btn-danger" onClick={() => setDeleteAllConfirm(true)}>
+              <Trash2 size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
+              Удалить все
+            </button>
+          )}
+        </div>
       </div>
 
       {error && <div className="form-error">{error}</div>}
@@ -160,6 +175,15 @@ export default function Departments() {
           message={`Отдел "${deleteTarget.name}" будет удалён.`}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={deleteDepartment}
+        />
+      )}
+
+      {deleteAllConfirm && (
+        <ConfirmDeleteModal
+          title="Удалить все отделы?"
+          message="Все отделы будут удалены. Связанные SQDCP-строки останутся без привязки к отделу."
+          onCancel={() => setDeleteAllConfirm(false)}
+          onConfirm={deleteAll}
         />
       )}
     </div>

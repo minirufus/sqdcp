@@ -82,6 +82,23 @@ def update_department(department_id):
     return jsonify(serialize(department))
 
 
+@departments_bp.route("/all", methods=["DELETE"])
+@jwt_required()
+def delete_all_departments():
+    user_id = int(get_jwt_identity())
+    current_user = User.query.get(user_id)
+    if current_user.role != "admin":
+        return jsonify({"error": "Только администратор может удалять отделы"}), 403
+
+    from app.models.sqdcp_row import SqdcpRow
+    SqdcpRow.query.filter(SqdcpRow.department_id.isnot(None)).update(
+        {SqdcpRow.department_id: None}, synchronize_session=False
+    )
+    Department.query.delete()
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
 @departments_bp.route("/<int:department_id>", methods=["DELETE"])
 @jwt_required()
 def delete_department(department_id):
@@ -94,6 +111,10 @@ def delete_department(department_id):
     if not department:
         return jsonify({"ok": True})
 
+    from app.models.sqdcp_row import SqdcpRow
+    SqdcpRow.query.filter(SqdcpRow.department_id == department_id).update(
+        {SqdcpRow.department_id: None}, synchronize_session=False
+    )
     db.session.delete(department)
     db.session.commit()
     return jsonify({"ok": True})
