@@ -23,7 +23,7 @@ echo   OK - http://localhost:8000
 echo [3/4] Checking frontend deps...
 cd /d "%FRONTEND%"
 if not exist "node_modules" (
-    call npm install --silent
+    call npm install
 )
 echo   OK
 

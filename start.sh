@@ -44,7 +44,11 @@ echo "  OK - http://localhost:8000"
 echo "[3/4] Checking frontend deps..."
 cd "$FRONTEND"
 if [[ ! -d "node_modules" ]]; then
-  npm install --silent
+  if ! command -v npm &>/dev/null; then
+    echo "  ERROR: npm not found. Install Node.js from https://nodejs.org"
+    exit 1
+  fi
+  npm install
 fi
 echo "  OK"
 
