@@ -949,24 +949,27 @@ td { font-size: 0.9rem; }
   gap: 0.4rem;
 }
 
-/* Theme toggle */
-.theme-toggle {
-  margin-top: 0.25rem;
-  background: none;
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  text-align: left;
+/* Theme toggle FAB */
+.theme-toggle-fab {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 200;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  justify-content: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  border-radius: 10px;
+  cursor: pointer;
   transition: all 0.15s;
+  box-shadow: var(--shadow);
 }
 
-.theme-toggle:hover {
+.theme-toggle-fab:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
 }
