@@ -1,4 +1,4 @@
-:root {
+[data-theme="dark"] {
   --bg-primary: #0d1b2e;
   --bg-secondary: #1b2838;
   --bg-card: #1e2d3d;
@@ -12,6 +12,32 @@
   --success: #22c55e;
   --warning: #f59e0b;
   --danger: #ef4444;
+  --overlay: rgba(0,0,0,0.6);
+  --shadow: 0 4px 20px rgba(0,0,0,0.3);
+  --row-hover: rgba(255,255,255,0.02);
+  --calendar-day-bg: var(--bg-primary);
+  --color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg-primary: #f0f4f8;
+  --bg-secondary: #e2e8f0;
+  --bg-card: #ffffff;
+  --bg-hover: #f1f5f9;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --accent: #3b82f6;
+  --accent-hover: #2563eb;
+  --accent-light: #dbeafe;
+  --border: #cbd5e1;
+  --success: #16a34a;
+  --warning: #d97706;
+  --danger: #dc2626;
+  --overlay: rgba(0,0,0,0.4);
+  --shadow: 0 4px 20px rgba(0,0,0,0.1);
+  --row-hover: rgba(0,0,0,0.02);
+  --calendar-day-bg: #ffffff;
+  --color-scheme: light;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -231,7 +257,7 @@ body {
 .modal-overlay {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.6);
+  background: var(--overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -353,7 +379,7 @@ td { font-size: 0.9rem; }
 
 .board-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  box-shadow: var(--shadow);
 }
 
 .board-card h3 { margin-bottom: 0.5rem; }
@@ -543,7 +569,7 @@ td { font-size: 0.9rem; }
 }
 
 .sqdcp-table tbody tr:hover {
-  background: rgba(255,255,255,0.02);
+  background: var(--row-hover);
 }
 
 .sqdcp-table td {
@@ -655,7 +681,7 @@ td { font-size: 0.9rem; }
 .board-edit-fields textarea:focus {
   outline: none;
   border-color: var(--accent);
-  background: rgba(255,255,255,0.02);
+  background: var(--row-hover);
   padding-inline: 0.7rem;
 }
 
@@ -679,8 +705,14 @@ td { font-size: 0.9rem; }
   border: none;
   color: var(--text-primary);
   font: inherit;
-  color-scheme: dark;
 }
+
+[data-theme="dark"] .date-picker-control input,
+[data-theme="dark"] .month-picker-control input,
+[data-theme="dark"] .month-picker-control select { color-scheme: dark; }
+[data-theme="light"] .date-picker-control input,
+[data-theme="light"] .month-picker-control input,
+[data-theme="light"] .month-picker-control select { color-scheme: light; }
 
 .date-picker-control input:focus,
 .month-picker-control input:focus,
@@ -730,7 +762,7 @@ td { font-size: 0.9rem; }
   position: relative;
   min-height: 118px;
   padding: 0.75rem;
-  background: var(--bg-primary);
+  background: var(--calendar-day-bg);
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text-primary);
@@ -793,7 +825,7 @@ td { font-size: 0.9rem; }
   gap: 0.75rem;
   width: 100%;
   padding: 0.9rem;
-  background: var(--bg-primary);
+  background: var(--calendar-day-bg);
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text-primary);
@@ -915,4 +947,26 @@ td { font-size: 0.9rem; }
 .dept-actions {
   display: flex;
   gap: 0.4rem;
+}
+
+/* Theme toggle */
+.theme-toggle {
+  margin-top: 0.25rem;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  transition: all 0.15s;
+}
+
+.theme-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
