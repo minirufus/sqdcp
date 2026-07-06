@@ -40,6 +40,8 @@ export default function BoardDetail() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showAddDept, setShowAddDept] = useState(false);
+  const [showCreateDept, setShowCreateDept] = useState(false);
+  const [deptForm, setDeptForm] = useState({ name: "", head_name: "", deputy_name: "" });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [error, setError] = useState("");
 
@@ -104,6 +106,25 @@ export default function BoardDetail() {
       },
     ]);
     setShowAddDept(false);
+  };
+
+  const createDeptInline = async (e) => {
+    e.preventDefault();
+    setError("");
+    const name = deptForm.name.trim();
+    if (!name) { setError("Введите название отдела"); return; }
+    try {
+      const created = await api.createDepartment(deptForm);
+      const [data, deptsData] = await Promise.all([api.getBoard(id), api.getDepartments()]);
+      setBoard(data);
+      setRows(normalizeRows(data.rows || []));
+      setDepartments(deptsData);
+      addDepartmentRow(created);
+      setDeptForm({ name: "", head_name: "", deputy_name: "" });
+      setShowCreateDept(false);
+    } catch (err) {
+      setError(err.message);
+    }
   };
 
   const availableDepts = departments.filter(
@@ -252,25 +273,43 @@ export default function BoardDetail() {
         </table>
       </div>
       <div className="board-bottom-actions" style={{ display: "flex", gap: "0.75rem" }}>
-        {availableDepts.length > 0 && (
-          <div className="add-dept-wrap">
-            <button className="btn btn-ghost" onClick={() => setShowAddDept(!showAddDept)}>
-              <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
-              Добавить отдел
-            </button>
-            {showAddDept && (
-              <div className="add-dept-dropdown">
-                {availableDepts.map((d) => (
-                  <button key={d.id} className="add-dept-item" onClick={() => addDepartmentRow(d)}>
-                    <Building2 size={16} />
-                    <span>{d.name}</span>
-                    {d.head_name && <span className="dept-item-head">{d.head_name}</span>}
-                  </button>
-                ))}
+        <div className="add-dept-wrap">
+          <button className="btn btn-ghost" onClick={() => { setShowAddDept(!showAddDept); setShowCreateDept(false); }}>
+            <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
+            Добавить отдел
+          </button>
+          {showAddDept && (
+            <div className="add-dept-dropdown">
+              {availableDepts.length === 0 && departments.length === 0 && (
+                <div className="add-dept-empty">Нет отделов. Создайте первый.</div>
+              )}
+              {availableDepts.length === 0 && departments.length > 0 && (
+                <div className="add-dept-empty">Все отделы уже добавлены</div>
+              )}
+              {availableDepts.map((d) => (
+                <button key={d.id} className="add-dept-item" onClick={() => addDepartmentRow(d)}>
+                  <Building2 size={16} />
+                  <span>{d.name}</span>
+                  {d.head_name && <span className="dept-item-head">{d.head_name}</span>}
+                </button>
+              ))}
+              <button className="add-dept-item add-dept-create" onClick={() => { setShowCreateDept(!showCreateDept); setDeptForm({ name: "", head_name: "", deputy_name: "" }); }}>
+                + Создать новый отдел
+              </button>
+            </div>
+          )}
+          {showCreateDept && (
+            <div className="dept-create-inline" style={{ marginTop: "0.5rem", display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+              <input value={deptForm.name} onChange={(e) => setDeptForm({ ...deptForm, name: e.target.value })} placeholder="Название отдела" />
+              <input value={deptForm.head_name} onChange={(e) => setDeptForm({ ...deptForm, head_name: e.target.value })} placeholder="Начальник (Фамилия И.О.)" />
+              <input value={deptForm.deputy_name} onChange={(e) => setDeptForm({ ...deptForm, deputy_name: e.target.value })} placeholder="Зам. начальника (опционально)" />
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <button type="button" className="btn btn-primary btn-sm" onClick={createDeptInline}>Создать</button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowCreateDept(false)}>Отмена</button>
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
 
       {showDeleteConfirm && (

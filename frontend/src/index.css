@@ -739,6 +739,21 @@ td { font-size: 0.9rem; }
   text-decoration: underline;
 }
 
+.dept-create-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.dept-create-inline input {
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
 .dept-detail-table th {
   background: var(--bg-secondary);
 }

@@ -50,10 +50,27 @@ export default function Dashboard() {
     navigate(`/boards/${board.id}`);
   };
 
+  const [deptForm, setDeptForm] = useState({ name: "", head_name: "", deputy_name: "" });
+  const [showDeptForm, setShowDeptForm] = useState(false);
+
   const openCreateModal = () => {
     setSelectedDepts([]);
     setTitle("");
+    setDeptForm({ name: "", head_name: "", deputy_name: "" });
+    setShowDeptForm(false);
     setShowModal(true);
+  };
+
+  const createDeptInline = async (e) => {
+    e.preventDefault();
+    setError("");
+    const name = deptForm.name.trim();
+    if (!name) { setError("Введите название отдела"); return; }
+    const created = await api.createDepartment(deptForm);
+    await load();
+    setSelectedDepts((prev) => [...prev, created.id]);
+    setDeptForm({ name: "", head_name: "", deputy_name: "" });
+    setShowDeptForm(false);
   };
 
   const deleteBoard = async () => {
@@ -126,20 +143,43 @@ export default function Dashboard() {
               </div>
               <div className="form-group">
                 <label>Отделы (строки таблицы)</label>
-                <div className="dept-checklist">
-                  {departments.length === 0 && <span className="text-secondary">Нет отделов. Создайте отделы в разделе «Отделы».</span>}
-                  {departments.map((d) => (
-                    <label key={d.id} className="dept-check-item">
-                      <input
-                        type="checkbox"
-                        checked={selectedDepts.includes(d.id)}
-                        onChange={() => toggleDept(d.id)}
-                      />
-                      <span>{d.name}</span>
-                      {d.head_name && <span className="dept-check-head">{d.head_name}</span>}
-                    </label>
-                  ))}
-                </div>
+                {departments.length > 0 ? (
+                  <div className="dept-checklist">
+                    {departments.map((d) => (
+                      <label key={d.id} className="dept-check-item">
+                        <input
+                          type="checkbox"
+                          checked={selectedDepts.includes(d.id)}
+                          onChange={() => toggleDept(d.id)}
+                        />
+                        <span>{d.name}</span>
+                        {d.head_name && <span className="dept-check-head">{d.head_name}</span>}
+                      </label>
+                    ))}
+                    <button type="button" className="btn btn-ghost btn-sm" style={{ marginTop: "0.35rem" }} onClick={() => { setShowDeptForm(!showDeptForm); setDeptForm({ name: "", head_name: "", deputy_name: "" }); }}>
+                      + Создать новый отдел
+                    </button>
+                  </div>
+                ) : (
+                  <div className="dept-create-inline">
+                    <p className="text-secondary" style={{ marginBottom: "0.5rem" }}>Отделов пока нет. Создайте первый отдел:</p>
+                    <input value={deptForm.name} onChange={(e) => setDeptForm({ ...deptForm, name: e.target.value })} placeholder="Название отдела" />
+                    <input value={deptForm.head_name} onChange={(e) => setDeptForm({ ...deptForm, head_name: e.target.value })} placeholder="Начальник (Фамилия И.О.)" />
+                    <input value={deptForm.deputy_name} onChange={(e) => setDeptForm({ ...deptForm, deputy_name: e.target.value })} placeholder="Зам. начальника (опционально)" />
+                    <button type="button" className="btn btn-primary btn-sm" style={{ marginTop: "0.5rem" }} onClick={createDeptInline}>Создать отдел</button>
+                  </div>
+                )}
+                {showDeptForm && departments.length > 0 && (
+                  <div className="dept-create-inline" style={{ marginTop: "0.5rem" }}>
+                    <input value={deptForm.name} onChange={(e) => setDeptForm({ ...deptForm, name: e.target.value })} placeholder="Название отдела" />
+                    <input value={deptForm.head_name} onChange={(e) => setDeptForm({ ...deptForm, head_name: e.target.value })} placeholder="Начальник (Фамилия И.О.)" />
+                    <input value={deptForm.deputy_name} onChange={(e) => setDeptForm({ ...deptForm, deputy_name: e.target.value })} placeholder="Зам. начальника (опционально)" />
+                    <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
+                      <button type="button" className="btn btn-primary btn-sm" onClick={createDeptInline}>Создать</button>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowDeptForm(false)}>Отмена</button>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)}>Отмена</button>
