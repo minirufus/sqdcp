@@ -6,6 +6,17 @@ BACKEND="$ROOT/backend"
 FRONTEND="$ROOT/frontend"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 
+# Common Node.js locations on macOS (Apple Silicon + Intel)
+for _node_dir in \
+  /opt/homebrew/bin \
+  /opt/homebrew/opt/node/bin \
+  /usr/local/bin; do
+  if [[ -d "$_node_dir" ]]; then
+    PATH="$_node_dir:$PATH"
+  fi
+done
+export PATH
+
 BACKEND_PID=""
 FRONTEND_PID=""
 
@@ -39,44 +50,74 @@ echo "  OK"
 echo "[2/4] Starting backend (Flask)..."
 python run.py &
 BACKEND_PID=$!
+# wait for backend to be ready
+for _i in {1..15}; do
+  if curl -s http://localhost:8000/api/boards >/dev/null 2>&1; then
+    break
+  fi
+  sleep 0.5
+done
 echo "  OK - http://localhost:8000"
 
 ensure_node() {
+  # If node/npm already available, we're good
   if command -v node &>/dev/null && command -v npm &>/dev/null; then
     return 0
   fi
 
-  # init nvm if installed
+  # --- nvm ---
   export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
   if [[ -s "$NVM_DIR/nvm.sh" ]]; then
     source "$NVM_DIR/nvm.sh"
+    # nvm may have a default alias; apply it
+    nvm use default 2>/dev/null || true
   fi
 
   if command -v node &>/dev/null && command -v npm &>/dev/null; then
     return 0
   fi
 
-  # try fnm
+  # --- fnm ---
   if command -v fnm &>/dev/null; then
-    eval "$(fnm env --use-on-cd 2>/dev/null)"
+    # Try different fnm env variants
+    eval "$(fnm env 2>/dev/null)" || eval "$(fnm env --use-on-cd 2>/dev/null)" || true
+    # fnm may have a .node-version or .nvmrc; use the current alias
+    fnm use 2>/dev/null || true
+  fi
+
+  if command -v node &>/dev/null && command -v npm &>/dev/null; then
+    return 0
+  fi
+
+  # --- nvm auto-install ---
+  if [[ -s "$NVM_DIR/nvm.sh" ]]; then
+    echo "  Installing Node.js via nvm..."
+    source "$NVM_DIR/nvm.sh"
+    nvm install --lts --latest-npm
+    nvm alias default "$(nvm current 2>/dev/null || echo 'lts/*')"
+    # ensure node/npm are on PATH from nvm
     if command -v node &>/dev/null && command -v npm &>/dev/null; then
       return 0
     fi
   fi
 
-  # auto-install via nvm
-  if [[ -s "$NVM_DIR/nvm.sh" ]]; then
-    echo "  Installing Node.js via nvm..."
-    source "$NVM_DIR/nvm.sh"
-    nvm install --lts --latest-npm
-    return 0
-  fi
-
-  # auto-install via brew
+  # --- Homebrew auto-install ---
   if command -v brew &>/dev/null; then
     echo "  Installing Node.js via Homebrew..."
     brew install node
-    return 0
+    # brew may install to /opt/homebrew/bin (Apple Silicon) or /usr/local/bin (Intel)
+    for _dir in /opt/homebrew/bin /usr/local/bin /opt/homebrew/opt/node/bin; do
+      if [[ -x "$_dir/node" ]] && [[ -x "$_dir/npm" ]]; then
+        PATH="$_dir:$PATH"
+        export PATH
+        return 0
+      fi
+    done
+    # Last resort: re-source PATH from brew
+    eval "$(brew shellenv 2>/dev/null)" || true
+    if command -v node &>/dev/null && command -v npm &>/dev/null; then
+      return 0
+    fi
   fi
 
   echo "  ERROR: Node.js не найден и не удалось установить автоматически."
@@ -88,7 +129,7 @@ echo "[3/4] Checking frontend deps..."
 cd "$FRONTEND"
 ensure_node
 if [[ ! -d "node_modules" ]]; then
-  npm install
+  npm install --no-fund --no-audit || npm install --no-fund --no-audit
 fi
 echo "  OK"
 
