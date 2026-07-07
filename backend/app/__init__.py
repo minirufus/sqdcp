@@ -21,7 +21,7 @@ def create_app():
     jwt.init_app(app)
 
     with app.app_context():
-        from app.models import user, department, board, sqdcp_row
+        from app.models import user, department, board, sqdcp_row, sqdcp_task
         db.create_all()
         ensure_board_columns()
         ensure_department_columns()
@@ -30,10 +30,12 @@ def create_app():
     from app.routers.auth import auth_bp
     from app.routers.boards import boards_bp
     from app.routers.departments import departments_bp
+    from app.routers.sqdcp_tasks import sqdcp_tasks_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(boards_bp)
     app.register_blueprint(departments_bp)
+    app.register_blueprint(sqdcp_tasks_bp)
 
     return app
 

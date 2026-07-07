@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import { ArrowLeft, ArrowDown, ArrowUp, Building2, CalendarDays, Plus, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowDown, ArrowUp, Building2, CalendarDays, Plus, Save, Trash2, CheckCircle2, Circle, AlertCircle, ChevronDown, ChevronRight } from "lucide-react";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 
 const DEFAULT_COLUMNS = [
@@ -11,6 +11,10 @@ const DEFAULT_COLUMNS = [
   { key: "cost", label: "Cost", description: "стоимость" },
   { key: "people", label: "People", description: "персонал" },
 ];
+
+const STATUS_LABELS = { todo: "К выполнению", in_progress: "В работе", done: "Готово" };
+const STATUS_ICONS = { todo: Circle, in_progress: AlertCircle, done: CheckCircle2 };
+const STATUS_COLORS = { todo: "#6b7280", in_progress: "#f59e0b", done: "#22c55e" };
 
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
@@ -45,15 +49,24 @@ export default function BoardDetail() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [error, setError] = useState("");
 
+  const [tasks, setTasks] = useState([]);
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [taskForm, setTaskForm] = useState({ title: "", description: "", status: "todo", assignee: "", row_id: null, column_key: "safety" });
+  const [editingTask, setEditingTask] = useState(null);
+  const [filterColumn, setFilterColumn] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [expandedRows, setExpandedRows] = useState({});
+
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const [data, deptsData] = await Promise.all([api.getBoard(id), api.getDepartments()]);
+      const [data, deptsData, tasksData] = await Promise.all([api.getBoard(id), api.getDepartments(), api.getTasks(id)]);
       setBoard(data);
       setRows(normalizeRows(data.rows || []));
       setColumns(data.columns || DEFAULT_COLUMNS);
       setDepartments(deptsData);
+      setTasks(tasksData || []);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -98,11 +111,7 @@ export default function BoardDetail() {
         department_id: dept.id,
         team_name: dept.name,
         position: rows.length,
-        safety: "",
-        quality: "",
-        delivery: "",
-        cost: "",
-        people: "",
+        safety: "", quality: "", delivery: "", cost: "", people: "",
       },
     ]);
     setShowAddDept(false);
@@ -127,9 +136,7 @@ export default function BoardDetail() {
     }
   };
 
-  const availableDepts = departments.filter(
-    (d) => !rows.some((r) => r.department_id === d.id)
-  );
+  const availableDepts = departments.filter((d) => !rows.some((r) => r.department_id === d.id));
 
   const saveBoard = async () => {
     setSaving(true);
@@ -142,11 +149,7 @@ export default function BoardDetail() {
           department_id: row.department_id || null,
           team_name: row.team_name,
           position: idx,
-          safety: row.safety,
-          quality: row.quality,
-          delivery: row.delivery,
-          cost: row.cost,
-          people: row.people,
+          safety: row.safety, quality: row.quality, delivery: row.delivery, cost: row.cost, people: row.people,
         })),
       });
       setBoard(data);
@@ -165,8 +168,70 @@ export default function BoardDetail() {
     navigate("/boards");
   };
 
+  const getTaskCount = (rowId, colKey) => {
+    return tasks.filter((t) => t.row_id === rowId && t.column_key === colKey).length;
+  };
+
+  const getFilteredTasks = () => {
+    return tasks.filter((t) => {
+      if (filterColumn !== "all" && t.column_key !== filterColumn) return false;
+      if (filterStatus !== "all" && t.status !== filterStatus) return false;
+      return true;
+    });
+  };
+
+  const openCreateTask = (rowId, colKey) => {
+    setTaskForm({ title: "", description: "", status: "todo", assignee: "", row_id: rowId, column_key: colKey });
+    setEditingTask(null);
+    setShowTaskModal(true);
+  };
+
+  const openEditTask = (task) => {
+    setTaskForm({ title: task.title, description: task.description || "", status: task.status, assignee: task.assignee || "", row_id: task.row_id, column_key: task.column_key });
+    setEditingTask(task);
+    setShowTaskModal(true);
+  };
+
+  const submitTask = async (e) => {
+    e.preventDefault();
+    if (!taskForm.title.trim()) return;
+    try {
+      if (editingTask) {
+        await api.updateTask(id, editingTask.id, taskForm);
+      } else {
+        await api.createTask(id, taskForm);
+      }
+      setShowTaskModal(false);
+      const tasksData = await api.getTasks(id);
+      setTasks(tasksData || []);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const deleteTask = async (taskId) => {
+    if (!window.confirm("Удалить задачу?")) return;
+    await api.deleteTask(id, taskId);
+    const tasksData = await api.getTasks(id);
+    setTasks(tasksData || []);
+  };
+
+  const updateTaskStatus = async (task, newStatus) => {
+    await api.updateTask(id, task.id, { status: newStatus });
+    const tasksData = await api.getTasks(id);
+    setTasks(tasksData || []);
+  };
+
+  const getRowName = (rowId) => {
+    if (!rowId) return "Без строки";
+    const row = rows.find((r) => String(r.id) === String(rowId));
+    return row ? row.team_name : "Строка удалена";
+  };
+
   if (loading) return <div className="loading-panel">Загрузка...</div>;
   if (error && !board) return <div className="form-error">{error}</div>;
+
+  const filteredTasks = getFilteredTasks();
 
   return (
     <div>
@@ -244,16 +309,27 @@ export default function BoardDetail() {
                     />
                   )}
                 </td>
-                {columns.map((column) => (
-                  <td key={column.key} className="sqdcp-edit-cell">
-                    <textarea
-                      value={row[column.key] || ""}
-                      onChange={(e) => handleCellChange(idx, column.key, e)}
-                      ref={(element) => { if (element) resizeTextarea(element); }}
-                      aria-label={`${column.label}, ${row.team_name}`}
-                    />
-                  </td>
-                ))}
+                {columns.map((column) => {
+                  const count = getTaskCount(row.id, column.key);
+                  return (
+                    <td key={column.key} className="sqdcp-edit-cell" style={{ position: "relative" }}>
+                      <textarea
+                        value={row[column.key] || ""}
+                        onChange={(e) => handleCellChange(idx, column.key, e)}
+                        ref={(element) => { if (element) resizeTextarea(element); }}
+                        aria-label={`${column.label}, ${row.team_name}`}
+                      />
+                      <button
+                        className="task-badge"
+                        onClick={() => openCreateTask(row.id, column.key)}
+                        title="Добавить задачу"
+                      >
+                        <Plus size={10} />
+                        {count > 0 && <span className="task-count">{count}</span>}
+                      </button>
+                    </td>
+                  );
+                })}
                 <td className="row-action-cell">
                   <div className="row-actions">
                     <button className="btn btn-ghost btn-sm" onClick={() => moveRow(idx, -1)} disabled={idx === 0}>
@@ -272,7 +348,8 @@ export default function BoardDetail() {
           </tbody>
         </table>
       </div>
-      <div className="board-bottom-actions" style={{ display: "flex", gap: "0.75rem" }}>
+
+      <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.75rem" }}>
         <div className="add-dept-wrap">
           <button className="btn btn-ghost" onClick={() => { setShowAddDept(!showAddDept); setShowCreateDept(false); }}>
             <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
@@ -308,6 +385,115 @@ export default function BoardDetail() {
           )}
         </div>
       </div>
+
+      <div className="card" style={{ marginTop: "1.5rem" }}>
+        <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
+          <h2 style={{ fontSize: "1rem", margin: 0 }}>Трекер задач</h2>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+            <select className="input-sm" value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)} style={{ fontSize: "0.78rem", padding: "3px 6px" }}>
+              <option value="all">Все SQDCP</option>
+              {columns.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+            </select>
+            <select className="input-sm" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ fontSize: "0.78rem", padding: "3px 6px" }}>
+              <option value="all">Все статусы</option>
+              <option value="todo">К выполнению</option>
+              <option value="in_progress">В работе</option>
+              <option value="done">Готово</option>
+            </select>
+            <button className="btn btn-primary btn-sm" onClick={() => openCreateTask(null, filterColumn === "all" ? "safety" : filterColumn)}>
+              <Plus size={14} style={{ verticalAlign: "middle", marginRight: 4 }} />
+              Задача
+            </button>
+          </div>
+        </div>
+        <div className="card-body" style={{ padding: "0.75rem" }}>
+          {filteredTasks.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "1.5rem", color: "var(--text-secondary)", fontSize: "0.85rem" }}>
+              Задач нет. Нажмите + на ячейке таблицы или кнопку «Задача».
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+              {filteredTasks.map((task) => {
+                const StatusIcon = STATUS_ICONS[task.status] || Circle;
+                return (
+                  <div key={task.id} className="task-tracker-row" style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.4rem 0.6rem", background: "var(--bg-primary)", borderRadius: 6, fontSize: "0.82rem" }}>
+                    <button className="btn btn-ghost btn-sm" style={{ padding: 2, lineHeight: 1 }} onClick={() => updateTaskStatus(task, task.status === "done" ? "todo" : task.status === "todo" ? "in_progress" : "done")} title={STATUS_LABELS[task.status]}>
+                      <StatusIcon size={14} color={STATUS_COLORS[task.status]} />
+                    </button>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: task.status === "done" ? 400 : 500, textDecoration: task.status === "done" ? "line-through" : "none", color: task.status === "done" ? "var(--text-secondary)" : "inherit" }}>
+                        {task.title}
+                      </div>
+                      <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                        <span>{DEFAULT_COLUMNS.find((c) => c.key === task.column_key)?.label || task.column_key}</span>
+                        {task.row_id && <span>— {getRowName(task.row_id)}</span>}
+                        {task.assignee && <span>— {task.assignee}</span>}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
+                      <button className="btn btn-ghost btn-sm" style={{ padding: 2, lineHeight: 1 }} onClick={() => openEditTask(task)} title="Редактировать">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      </button>
+                      <button className="btn btn-ghost btn-sm" style={{ padding: 2, lineHeight: 1 }} onClick={() => deleteTask(task.id)} title="Удалить">
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {showTaskModal && (
+        <div className="modal-overlay" onClick={() => setShowTaskModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <h2>{editingTask ? "Редактировать задачу" : "Новая задача"}</h2>
+            <form onSubmit={submitTask}>
+              <div className="form-group">
+                <label>Название</label>
+                <input value={taskForm.title} onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })} required />
+              </div>
+              <div className="form-group">
+                <label>Описание</label>
+                <textarea value={taskForm.description} onChange={(e) => setTaskForm({ ...taskForm, description: e.target.value })} rows={2} />
+              </div>
+              <div style={{ display: "flex", gap: "0.75rem" }}>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label>Статус</label>
+                  <select value={taskForm.status} onChange={(e) => setTaskForm({ ...taskForm, status: e.target.value })}>
+                    <option value="todo">К выполнению</option>
+                    <option value="in_progress">В работе</option>
+                    <option value="done">Готово</option>
+                  </select>
+                </div>
+                <div className="form-group" style={{ flex: 1 }}>
+                  <label>SQDCP</label>
+                  <select value={taskForm.column_key} onChange={(e) => setTaskForm({ ...taskForm, column_key: e.target.value })}>
+                    {columns.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="form-group">
+                <label>Строка (отдел)</label>
+                <select value={taskForm.row_id || ""} onChange={(e) => setTaskForm({ ...taskForm, row_id: e.target.value ? Number(e.target.value) : null })}>
+                  <option value="">Без строки</option>
+                  {rows.map((r) => <option key={r.id} value={r.id}>{r.team_name}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Исполнитель</label>
+                <input value={taskForm.assignee} onChange={(e) => setTaskForm({ ...taskForm, assignee: e.target.value })} placeholder="ФИО" />
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="btn btn-ghost" onClick={() => setShowTaskModal(false)}>Отмена</button>
+                <button type="submit" className="btn btn-primary">{editingTask ? "Сохранить" : "Создать"}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {showDeleteConfirm && (
         <ConfirmDeleteModal
