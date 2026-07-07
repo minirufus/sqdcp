@@ -39,7 +39,7 @@
   --row-hover: rgba(0,0,0,0.02);
   --calendar-day-bg: #ffffff;
   --color-scheme: light;
-  --sqdcp-desc: rgba(255,255,255,0.5);
+  --sqdcp-desc: #000;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
