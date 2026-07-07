@@ -399,40 +399,57 @@ export default function BoardDetail() {
       </div>
 
       <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.75rem" }}>
-        <div className="add-dept-wrap">
-          <button className="btn btn-ghost" onClick={() => { setShowAddDept(!showAddDept); setShowCreateDept(false); }}>
-            <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
-            Добавить отдел
-          </button>
-          {showAddDept && (
-            <div className="add-dept-dropdown">
-              {availableDepts.length === 0 && departments.length === 0 && (
-                <div className="add-dept-empty">Нет отделов. Создайте первый.</div>
-              )}
-              {availableDepts.map((d) => (
-                <button key={d.id} className="add-dept-item" onClick={() => addDepartmentRow(d)}>
-                  <Building2 size={16} />
-                  <span>{d.name}</span>
-                  {d.head_name && <span className="dept-item-head">{d.head_name}</span>}
-                </button>
-              ))}
-              <button className="add-dept-item add-dept-create" onClick={() => { setShowCreateDept(!showCreateDept); setDeptForm({ name: "", head_name: "" }); }}>
-                + Создать новый отдел
-              </button>
-            </div>
-          )}
-          {showCreateDept && (
-            <div className="dept-create-inline" style={{ marginTop: "0.5rem", display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-              <input value={deptForm.name} onChange={(e) => setDeptForm({ ...deptForm, name: e.target.value })} placeholder="Название отдела" />
-              <input value={deptForm.head_name} onChange={(e) => setDeptForm({ ...deptForm, head_name: e.target.value })} placeholder="Начальник (Фамилия И.О.)" />
-              <div style={{ display: "flex", gap: "0.5rem" }}>
-                <button type="button" className="btn btn-primary btn-sm" onClick={createDeptInline}>Создать</button>
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowCreateDept(false)}>Отмена</button>
-              </div>
-            </div>
-          )}
-        </div>
+        <button className="btn btn-ghost" onClick={() => { setShowAddDept(true); setShowCreateDept(false); setDeptForm({ name: "", head_name: "" }); }}>
+          <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
+          Добавить отдел
+        </button>
       </div>
+
+      {showAddDept && (
+        <div className="modal-overlay" onClick={() => setShowAddDept(false)}>
+          <div className="modal add-dept-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Добавить отдел</h2>
+            {!showCreateDept ? (
+              <>
+                <div className="add-dept-modal-list">
+                  {availableDepts.length === 0 && departments.length === 0 && (
+                    <div className="add-dept-empty">Нет отделов. Создайте первый.</div>
+                  )}
+                  {availableDepts.length === 0 && departments.length > 0 && (
+                    <div className="add-dept-empty">Все отделы уже добавлены.</div>
+                  )}
+                  {availableDepts.map((d) => (
+                    <button key={d.id} className="add-dept-item" onClick={() => { addDepartmentRow(d); setShowAddDept(false); }}>
+                      <Building2 size={16} />
+                      <span>{d.name}</span>
+                      {d.head_name && <span className="dept-item-head">{d.head_name}</span>}
+                    </button>
+                  ))}
+                </div>
+                <div className="modal-actions">
+                  <button className="btn btn-ghost" onClick={() => setShowAddDept(false)}>Отмена</button>
+                  <button className="btn btn-primary" onClick={() => setShowCreateDept(true)}>Создать новый отдел</button>
+                </div>
+              </>
+            ) : (
+              <form onSubmit={createDeptInline}>
+                <div className="form-group">
+                  <label>Название</label>
+                  <input value={deptForm.name} onChange={(e) => setDeptForm({ ...deptForm, name: e.target.value })} placeholder="Название отдела" required autoFocus />
+                </div>
+                <div className="form-group">
+                  <label>Начальник (Фамилия И.О.)</label>
+                  <input value={deptForm.head_name} onChange={(e) => setDeptForm({ ...deptForm, head_name: e.target.value })} placeholder="Иванов И.И." />
+                </div>
+                <div className="modal-actions">
+                  <button type="button" className="btn btn-ghost" onClick={() => setShowCreateDept(false)}>Назад</button>
+                  <button type="submit" className="btn btn-primary">Создать</button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="card" style={{ marginTop: "1.5rem" }}>
         <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
