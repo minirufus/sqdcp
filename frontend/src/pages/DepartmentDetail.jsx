@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import { ArrowLeft, Circle, CheckCircle2, AlertCircle, ExternalLink } from "lucide-react";
+import { ArrowLeft, Circle, CheckCircle2, AlertCircle } from "lucide-react";
 
 const SQDCP_LABELS = {
   safety: "Безопасность",
@@ -173,7 +173,6 @@ export default function DepartmentDetail() {
                         <span>— {getRowName(task.row_id)}</span>
                         <button className="link-btn" style={{ fontSize: "0.7rem" }} onClick={(e) => { e.stopPropagation(); navigate(`/boards/${task.board_id}`); }}>
                           {getBoardName(task.board_id)}
-                          <ExternalLink size={10} style={{ marginLeft: 3 }} />
                         </button>
                         {task.assignee && <span>— {task.assignee}</span>}
                       </div>
