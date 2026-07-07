@@ -25,6 +25,7 @@ function normalizeRows(rows) {
     id: row.id || `new-${idx}`,
     department_id: row.department_id || null,
     team_name: row.team_name || `Команда ${idx + 1}`,
+    head_name: row.head_name || "",
     position: idx,
     safety: row.safety || "",
     quality: row.quality || "",
@@ -45,7 +46,7 @@ export default function BoardDetail() {
   const [saving, setSaving] = useState(false);
   const [showAddDept, setShowAddDept] = useState(false);
   const [showCreateDept, setShowCreateDept] = useState(false);
-  const [deptForm, setDeptForm] = useState({ name: "", head_name: "", deputy_name: "" });
+  const [deptForm, setDeptForm] = useState({ name: "", head_name: "" });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [error, setError] = useState("");
 
@@ -110,6 +111,7 @@ export default function BoardDetail() {
         id: `new-${Date.now()}`,
         department_id: dept.id,
         team_name: dept.name,
+        head_name: dept.head_name || "",
         position: rows.length,
         safety: "", quality: "", delivery: "", cost: "", people: "",
       },
@@ -299,7 +301,10 @@ export default function BoardDetail() {
                   {row.department_id ? (
                     <div className="team-dept-name">
                       <Building2 size={16} style={{ verticalAlign: "middle", marginRight: 6, opacity: 0.6 }} />
-                      {row.team_name}
+                      <div>
+                        <div>{row.team_name}</div>
+                        {row.head_name && <div style={{ fontSize: "0.72rem", color: "var(--text-secondary)", marginTop: 2 }}>{row.head_name}</div>}
+                      </div>
                     </div>
                   ) : (
                     <input
@@ -367,7 +372,7 @@ export default function BoardDetail() {
                   {d.head_name && <span className="dept-item-head">{d.head_name}</span>}
                 </button>
               ))}
-              <button className="add-dept-item add-dept-create" onClick={() => { setShowCreateDept(!showCreateDept); setDeptForm({ name: "", head_name: "", deputy_name: "" }); }}>
+              <button className="add-dept-item add-dept-create" onClick={() => { setShowCreateDept(!showCreateDept); setDeptForm({ name: "", head_name: "" }); }}>
                 + Создать новый отдел
               </button>
             </div>
@@ -376,7 +381,6 @@ export default function BoardDetail() {
             <div className="dept-create-inline" style={{ marginTop: "0.5rem", display: "flex", flexDirection: "column", gap: "0.35rem" }}>
               <input value={deptForm.name} onChange={(e) => setDeptForm({ ...deptForm, name: e.target.value })} placeholder="Название отдела" />
               <input value={deptForm.head_name} onChange={(e) => setDeptForm({ ...deptForm, head_name: e.target.value })} placeholder="Начальник (Фамилия И.О.)" />
-              <input value={deptForm.deputy_name} onChange={(e) => setDeptForm({ ...deptForm, deputy_name: e.target.value })} placeholder="Зам. начальника (опционально)" />
               <div style={{ display: "flex", gap: "0.5rem" }}>
                 <button type="button" className="btn btn-primary btn-sm" onClick={createDeptInline}>Создать</button>
                 <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowCreateDept(false)}>Отмена</button>

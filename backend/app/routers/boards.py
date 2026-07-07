@@ -19,14 +19,17 @@ SQDCP_COLUMNS = [
 
 def serialize_row(row):
     dept_name = row.team_name
+    head_name = ""
     if row.department_id:
         dept = Department.query.get(row.department_id)
         if dept:
             dept_name = dept.name
+            head_name = dept.head_name or ""
     return {
         "id": row.id,
         "department_id": row.department_id,
         "team_name": dept_name,
+        "head_name": head_name,
         "position": row.position,
         "safety": row.safety or "",
         "quality": row.quality or "",
