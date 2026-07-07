@@ -572,10 +572,6 @@ td { font-size: 0.9rem; }
   background: var(--row-hover);
 }
 
-.sqdcp-edit-cell {
-  position: relative;
-}
-
 .task-tracker-row:hover {
   background: var(--bg-hover) !important;
 }
@@ -728,29 +724,7 @@ td { font-size: 0.9rem; }
 
 .sqdcp-edit-cell {
   padding: 0.65rem;
-}
-
-.sqdcp-edit-cell textarea {
-  width: 100%;
-  min-height: 112px;
-  padding: 0.9rem;
-  overflow: hidden;
-  resize: none;
-  background: var(--bg-primary);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 1rem;
-  line-height: 1.35;
-  text-align: center;
-  align-content: center;
-}
-
-.sqdcp-edit-cell textarea:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px rgba(59,130,246,0.25);
+  min-height: 80px;
 }
 
 .link-btn {
@@ -1141,37 +1115,26 @@ td { font-size: 0.9rem; }
   gap: 2px;
 }
 
-/* Cell tasks */
-.sqdcp-edit-cell {
-  position: relative;
-  vertical-align: top;
-}
-
-.sqdcp-edit-cell textarea {
-  min-height: 48px;
-}
-
-.cell-tasks {
+/* Cell tasks */.cell-tasks {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 0 0.15rem;
-  margin-top: 4px;
+  gap: 3px;
+  min-height: 100%;
 }
 
 .cell-task-item {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.7rem;
-  padding: 2px 5px;
-  border-radius: 4px;
+  font-size: 0.72rem;
+  padding: 3px 6px;
+  border-radius: 6px;
   cursor: pointer;
   background: var(--bg-hover);
   color: var(--text-primary);
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cell-task-item:hover {
@@ -1185,11 +1148,21 @@ td { font-size: 0.9rem; }
   text-align: center;
 }
 
-.cell-task-add {
-  opacity: 0.6;
-  font-style: italic;
+.cell-add-btn {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  opacity: 0.4;
+  transition: opacity 0.15s, background 0.15s;
 }
 
-.cell-task-add:hover {
+.cell-add-btn:hover {
   opacity: 1;
+  background: var(--accent-light);
+  color: var(--accent);
 }

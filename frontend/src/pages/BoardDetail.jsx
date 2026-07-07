@@ -5,11 +5,11 @@ import { ArrowLeft, GripVertical, Building2, CalendarDays, Plus, Save, Trash2, C
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 
 const DEFAULT_COLUMNS = [
-  { key: "safety", label: "Safety", description: "безопасность" },
-  { key: "quality", label: "Quality", description: "качество" },
-  { key: "delivery", label: "Delivery", description: "сроки" },
-  { key: "cost", label: "Cost", description: "стоимость" },
-  { key: "people", label: "People", description: "персонал" },
+  { key: "safety", label: "Безопасность", description: "Safety" },
+  { key: "quality", label: "Качество", description: "Quality" },
+  { key: "delivery", label: "Сроки", description: "Delivery" },
+  { key: "cost", label: "Стоимость", description: "Cost" },
+  { key: "people", label: "Персонал", description: "People" },
 ];
 
 const STATUS_LABELS = { todo: "К выполнению", in_progress: "В работе", done: "Готово" };
@@ -27,11 +27,6 @@ function normalizeRows(rows) {
     team_name: row.team_name || `Команда ${idx + 1}`,
     head_name: row.head_name || "",
     position: idx,
-    safety: row.safety || "",
-    quality: row.quality || "",
-    delivery: row.delivery || "",
-    cost: row.cost || "",
-    people: row.people || "",
   }));
 }
 
@@ -85,11 +80,6 @@ export default function BoardDetail() {
   const resizeTextarea = (element) => {
     element.style.height = "auto";
     element.style.height = `${element.scrollHeight}px`;
-  };
-
-  const handleCellChange = (idx, key, event) => {
-    resizeTextarea(event.target);
-    updateCell(idx, key, event.target.value);
   };
 
   const deleteRow = (idx) => {
@@ -150,7 +140,6 @@ export default function BoardDetail() {
         team_name: dept.name,
         head_name: dept.head_name || "",
         position: rows.length,
-        safety: "", quality: "", delivery: "", cost: "", people: "",
       },
     ]);
     setShowAddDept(false);
@@ -188,7 +177,7 @@ export default function BoardDetail() {
           department_id: row.department_id || null,
           team_name: row.team_name,
           position: idx,
-          safety: row.safety, quality: row.quality, delivery: row.delivery, cost: row.cost, people: row.people,
+          safety: "", quality: "", delivery: "", cost: "", people: "",
         })),
       });
       setBoard(data);
@@ -370,32 +359,23 @@ export default function BoardDetail() {
                   const remaining = cellTasks.length - visibleTasks.length;
                   return (
                     <td key={column.key} className="sqdcp-edit-cell">
-                      <textarea
-                        value={row[column.key] || ""}
-                        onChange={(e) => handleCellChange(idx, column.key, e)}
-                        ref={(element) => { if (element) resizeTextarea(element); }}
-                        aria-label={`${column.label}, ${row.team_name}`}
-                      />
-                      {cellTasks.length > 0 && (
-                        <div className="cell-tasks">
-                          {visibleTasks.map((t) => {
-                            const Icon = STATUS_ICONS[t.status] || Circle;
-                            return (
-                              <div key={t.id} className="cell-task-item" onClick={() => openEditTask(t)} title={STATUS_LABELS[t.status]}>
-                                <Icon size={10} color={STATUS_COLORS[t.status]} />
-                                <span>{t.title}</span>
-                              </div>
-                            );
-                          })}
-                          {remaining > 0 && (
-                            <div className="cell-task-more">+{remaining}</div>
-                          )}
-                          <div className="cell-task-item cell-task-add" onClick={() => openCreateTask(row.id, column.key)} title="Добавить задачу">
-                            <Plus size={10} />
-                            <span>Добавить</span>
-                          </div>
+                      <div className="cell-tasks">
+                        {visibleTasks.map((t) => {
+                          const Icon = STATUS_ICONS[t.status] || Circle;
+                          return (
+                            <div key={t.id} className="cell-task-item" onClick={() => openEditTask(t)} title={STATUS_LABELS[t.status]}>
+                              <Icon size={10} color={STATUS_COLORS[t.status]} />
+                              <span>{t.title}</span>
+                            </div>
+                          );
+                        })}
+                        {remaining > 0 && (
+                          <div className="cell-task-more">+{remaining}</div>
+                        )}
+                        <div className="cell-add-btn" onClick={() => openCreateTask(row.id, column.key)} title="Добавить задачу">
+                          <Plus size={14} />
                         </div>
-                      )}
+                      </div>
                     </td>
                   );
                 })}
@@ -459,7 +439,7 @@ export default function BoardDetail() {
           <h2 style={{ fontSize: "1rem", margin: 0 }}>Трекер задач</h2>
           <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
             <select className="input-sm" value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)} style={{ fontSize: "0.78rem", padding: "3px 6px" }}>
-              <option value="all">Все SQDCP</option>
+              <option value="all">Все</option>
               {columns.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
             </select>
             <select className="input-sm" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ fontSize: "0.78rem", padding: "3px 6px" }}>
@@ -516,7 +496,7 @@ export default function BoardDetail() {
 
       {showTaskModal && (
         <div className="modal-overlay" onClick={() => setShowTaskModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 500, width: "100%" }}>
             <h2>{editingTask ? "Редактировать задачу" : "Новая задача"}</h2>
             <form onSubmit={submitTask}>
               <div className="form-group">
@@ -525,7 +505,7 @@ export default function BoardDetail() {
               </div>
               <div className="form-group">
                 <label>Описание</label>
-                <textarea value={taskForm.description} onChange={(e) => setTaskForm({ ...taskForm, description: e.target.value })} rows={2} />
+                <textarea value={taskForm.description} onChange={(e) => setTaskForm({ ...taskForm, description: e.target.value })} rows={4} style={{ resize: "vertical" }} />
               </div>
               <div style={{ display: "flex", gap: "0.75rem" }}>
                 <div className="form-group" style={{ flex: 1 }}>
@@ -537,7 +517,7 @@ export default function BoardDetail() {
                   </select>
                 </div>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label>SQDCP</label>
+                  <label>Раздел</label>
                   <select value={taskForm.column_key} onChange={(e) => setTaskForm({ ...taskForm, column_key: e.target.value })}>
                     {columns.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
                   </select>

@@ -9,11 +9,11 @@ from app.models.department import Department
 boards_bp = Blueprint("boards", __name__, url_prefix="/api/boards")
 
 SQDCP_COLUMNS = [
-    {"key": "safety", "label": "Safety", "description": "безопасность"},
-    {"key": "quality", "label": "Quality", "description": "качество"},
-    {"key": "delivery", "label": "Delivery", "description": "сроки"},
-    {"key": "cost", "label": "Cost", "description": "стоимость"},
-    {"key": "people", "label": "People", "description": "персонал"},
+    {"key": "safety", "label": "Безопасность", "description": "Safety"},
+    {"key": "quality", "label": "Качество", "description": "Quality"},
+    {"key": "delivery", "label": "Сроки", "description": "Delivery"},
+    {"key": "cost", "label": "Стоимость", "description": "Cost"},
+    {"key": "people", "label": "Персонал", "description": "People"},
 ]
 
 
