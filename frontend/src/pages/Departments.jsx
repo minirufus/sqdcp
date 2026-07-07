@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import { ExternalLink, Plus, Pencil, Trash2, Building2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Building2 } from "lucide-react";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 
 export default function Departments() {
@@ -116,7 +116,6 @@ export default function Departments() {
                 <td>
                   <button className="link-btn" onClick={() => navigate(`/departments/${dept.id}`)}>
                     <strong>{dept.name}</strong>
-                    <ExternalLink size={12} style={{ marginLeft: 6, opacity: 0.5 }} />
                   </button>
                 </td>
                 <td className="dept-desc">{dept.description}</td>
