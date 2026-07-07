@@ -1,88 +1,89 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import { Plus, Trash2, BarChart3, Users, CalendarDays, FileText } from "lucide-react";
+import { Plus, Columns3, Trash2 } from "lucide-react";
+import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 
 export default function Dashboard() {
   const [boards, setBoards] = useState([]);
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ title: "", description: "", department_id: "" });
-  const [departments, setDepartments] = useState([]);
+  const [title, setTitle] = useState("");
+  const [boardToDelete, setBoardToDelete] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const navigate = useNavigate();
 
   const load = async () => {
-    setBoards(await api.getBoards());
-    setDepartments(await api.getDepartments());
+    setLoading(true);
+    setError("");
+    try {
+      setBoards(await api.getBoards());
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);
 
   const createBoard = async (e) => {
     e.preventDefault();
-    await api.createBoard({ ...form, department_id: form.department_id ? Number(form.department_id) : null });
+    setError("");
+    const board = await api.createBoard({ title: title.trim() || "Новая SQDCP-доска" });
     setShowModal(false);
-    setForm({ title: "", description: "", department_id: "" });
-    load();
+    setTitle("");
+    navigate(`/boards/${board.id}`);
   };
 
-  const deleteBoard = async (e, id) => {
-    e.stopPropagation();
-    await api.deleteBoard(id);
+  const deleteBoard = async () => {
+    if (!boardToDelete) return;
+    await api.deleteBoard(boardToDelete.id);
+    setBoardToDelete(null);
     load();
   };
 
   return (
     <div>
       <div className="page-header">
-        <h1>Панель управления</h1>
+        <div>
+          <h1>SQDCP-доски</h1>
+          <p className="page-subtitle">Выберите существующую SQDCP доску или создайте новую</p>
+        </div>
         <button className="btn btn-primary" onClick={() => setShowModal(true)}>
           <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
-          Добавить доску
+          Создать доску
         </button>
       </div>
 
-      <div className="grid grid-4" style={{ marginBottom: "2rem" }}>
-        <div className="card stat-card">
-          <BarChart3 size={24} color="var(--accent)" style={{ marginBottom: 8 }} />
-          <div className="stat-value">{boards.length}</div>
-          <div className="stat-label">Доски</div>
-        </div>
-        <div className="card stat-card">
-          <Users size={24} color="var(--accent)" style={{ marginBottom: 8 }} />
-          <div className="stat-value">{departments.length}</div>
-          <div className="stat-label">Отделы</div>
-        </div>
-        <div className="card stat-card">
-          <CalendarDays size={24} color="var(--accent)" style={{ marginBottom: 8 }} />
-          <div className="stat-value">{new Date().toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit" })}</div>
-          <div className="stat-label">Текущий день</div>
-        </div>
-        <div className="card stat-card">
-          <FileText size={24} color="var(--accent)" style={{ marginBottom: 8 }} />
-          <div className="stat-value">0</div>
-          <div className="stat-label">Отчеты</div>
-        </div>
-      </div>
+      {error && <div className="form-error">{error}</div>}
 
-      <h2 style={{ marginBottom: "1rem", fontSize: "1.15rem" }}>Ваши доски</h2>
-      {boards.length === 0 ? (
-        <div className="card" style={{ textAlign: "center", padding: "3rem" }}>
-          <p style={{ color: "var(--text-secondary)" }}>Нет досок. Создайте первую!</p>
+      {loading ? (
+        <div className="loading-panel">Загрузка...</div>
+      ) : boards.length === 0 ? (
+        <div className="card empty-state">
+          <Columns3 size={48} color="var(--text-secondary)" style={{ marginBottom: "1rem" }} />
+          <p>Пока нет SQDCP-досок.</p>
         </div>
       ) : (
         <div className="boards-grid">
-          {boards.map((b) => (
-            <div key={b.id} className="card board-card" onClick={() => navigate(`/boards/${b.id}`)}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                <h3>{b.title}</h3>
-                <button className="btn btn-ghost btn-sm" onClick={(e) => deleteBoard(e, b.id)}>
+          {boards.map((board) => (
+            <div key={board.id} className="card board-card board-card-button" onClick={() => navigate(`/boards/${board.id}`)} role="button" tabIndex={0}>
+              <div className="board-card-title-area">
+                <h3>{board.title}</h3>
+              </div>
+              <div className="board-card-footer">
+                <button
+                  className="btn btn-ghost btn-sm delete-icon-button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setBoardToDelete(board);
+                  }}
+                  aria-label={`Удалить доску ${board.title}`}
+                >
                   <Trash2 size={14} />
                 </button>
-              </div>
-              <p>{b.description || "Нет описания"}</p>
-              <div className="board-meta">
-                ID: {b.id}
-                {b.department_id && ` • Отдел: ${departments.find((d) => d.id === b.department_id)?.name || b.department_id}`}
+                <div className="board-meta">ID: {board.id}</div>
               </div>
             </div>
           ))}
@@ -92,22 +93,16 @@ export default function Dashboard() {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Новая доска</h2>
+            <h2>Новая SQDCP-доска</h2>
             <form onSubmit={createBoard}>
               <div className="form-group">
                 <label>Название</label>
-                <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
-              </div>
-              <div className="form-group">
-                <label>Описание</label>
-                <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-              </div>
-              <div className="form-group">
-                <label>Отдел</label>
-                <select value={form.department_id} onChange={(e) => setForm({ ...form, department_id: e.target.value })}>
-                  <option value="">Без отдела</option>
-                  {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                </select>
+                <input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Например: Проект внедрения"
+                  autoFocus
+                />
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)}>Отмена</button>
@@ -116,6 +111,15 @@ export default function Dashboard() {
             </form>
           </div>
         </div>
+      )}
+
+      {boardToDelete && (
+        <ConfirmDeleteModal
+          title="Удалить доску?"
+          message={`Доска "${boardToDelete.title}" будет удалена без возможности восстановления.`}
+          onCancel={() => setBoardToDelete(null)}
+          onConfirm={deleteBoard}
+        />
       )}
     </div>
   );

@@ -1,103 +1,100 @@
-import { useState, useEffect, useContext } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import { UserContext } from "../App";
-import { Plus, Trash2, Building2, Eye, Lock, UserPlus } from "lucide-react";
+import { Building2, Plus, Trash2 } from "lucide-react";
+import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 
 export default function Departments() {
-  const user = useContext(UserContext);
   const navigate = useNavigate();
   const [departments, setDepartments] = useState([]);
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ name: "", description: "" });
+  const [name, setName] = useState("");
+  const [departmentToDelete, setDepartmentToDelete] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const canCreate = user.role === "admin" || user.role === "manager";
-  const canJoin = user.role === "user" || user.role === "viewer";
+  const load = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      setDepartments(await api.getDepartments());
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const load = async () => setDepartments(await api.getDepartments());
   useEffect(() => { load(); }, []);
 
-  const createDept = async (e) => {
-    e.preventDefault();
-    await api.createDepartment(form);
-    setShowModal(false);
-    setForm({ name: "", description: "" });
-    load();
-  };
-
-  const deleteDept = async (id) => {
-    await api.deleteDepartment(id);
-    load();
-  };
-
-  const handleJoin = async (deptId, e) => {
-    e.stopPropagation();
+  const createDepartment = async (event) => {
+    event.preventDefault();
+    setError("");
     try {
-      await api.joinDepartment(deptId);
-      alert("Заявка отправлена! Ожидайте подтверждения администратора.");
+      const department = await api.createDepartment({ name: name.trim() });
+      setShowModal(false);
+      setName("");
+      navigate(`/departments/${department.id}`);
     } catch (err) {
-      alert(err.message);
+      setError(err.message);
     }
+  };
+
+  const deleteDepartment = async () => {
+    if (!departmentToDelete) return;
+    await api.deleteDepartment(departmentToDelete.id);
+    setDepartments(departments.filter((department) => department.id !== departmentToDelete.id));
+    setDepartmentToDelete(null);
   };
 
   return (
     <div>
       <div className="page-header">
-        <h1>Отделы</h1>
-        {canCreate && (
-          <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-            <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
-            Добавить отдел
-          </button>
-        )}
+        <div>
+          <h1>Отделы</h1>
+          <p className="page-subtitle">Создавайте отделы и редактируйте сведения о заведующих и работниках.</p>
+        </div>
+        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+          <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
+          Создать отдел
+        </button>
       </div>
 
-      {departments.length === 0 ? (
-        <div className="card" style={{ textAlign: "center", padding: "3rem" }}>
+      {error && <div className="form-error">{error}</div>}
+
+      {loading ? (
+        <div className="loading-panel">Загрузка...</div>
+      ) : departments.length === 0 ? (
+        <div className="card empty-state">
           <Building2 size={48} color="var(--text-secondary)" style={{ marginBottom: "1rem" }} />
-          <p style={{ color: "var(--text-secondary)" }}>Нет отделов. Создайте первый отдел!</p>
+          <p>Пока нет отделов.</p>
         </div>
       ) : (
-        <div style={{ display: "grid", gap: "0.5rem" }}>
-          {departments.map((d) => (
-            <div key={d.id} className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div
-                style={{ cursor: d.is_own || user.role === "admin" || user.role === "manager" ? "pointer" : "default", flex: 1 }}
-                onClick={() => {
-                  if (d.is_own || user.role === "admin" || user.role === "manager") {
-                    navigate(`/departments/${d.id}`);
-                  }
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
-                  <h3>{d.name}</h3>
-                  {d.is_own && <span style={{ fontSize: "0.7rem", background: "var(--accent-light)", color: "var(--accent)", padding: "2px 6px", borderRadius: 4 }}>Мой отдел</span>}
-                  {!d.is_own && user.role !== "admin" && user.role !== "manager" && (
-                    <Lock size={14} color="var(--text-secondary)" />
-                  )}
-                </div>
-                <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem" }}>{d.description || "Нет описания"}</p>
-                <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "0.25rem" }}>
-                  {d.boards_count} досок • {d.users_count} сотрудников
-                </div>
+        <div className="departments-grid">
+          {departments.map((department) => (
+            <div
+              key={department.id}
+              className="card department-card"
+              onClick={() => navigate(`/departments/${department.id}`)}
+              role="button"
+              tabIndex={0}
+            >
+              <div>
+                <h3>{department.name}</h3>
+                <p>{department.head || "Заведующий не указан"}</p>
               </div>
-              <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-                {(d.is_own || user.role === "admin" || user.role === "manager") && (
-                  <button className="btn btn-ghost btn-sm" onClick={() => navigate(`/departments/${d.id}`)}>
-                    <Eye size={14} />
-                  </button>
-                )}
-                {canJoin && !user.department_id && !d.is_own && (
-                  <button className="btn btn-primary btn-sm" onClick={(e) => handleJoin(d.id, e)}>
-                    <UserPlus size={14} style={{ verticalAlign: "middle", marginRight: 4 }} />
-                    Присоединиться
-                  </button>
-                )}
-                {(d.can_edit) && (
-                  <button className="btn btn-ghost btn-sm" onClick={() => deleteDept(d.id)}>
-                    <Trash2 size={14} />
-                  </button>
-                )}
+              <div className="department-card-footer">
+                <button
+                  className="btn btn-ghost btn-sm delete-icon-button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setDepartmentToDelete(department);
+                  }}
+                  aria-label={`Удалить отдел ${department.name}`}
+                >
+                  <Trash2 size={14} />
+                </button>
+                <span>ID: {department.id}</span>
               </div>
             </div>
           ))}
@@ -106,16 +103,17 @@ export default function Departments() {
 
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
+          <div className="modal" onClick={(event) => event.stopPropagation()}>
             <h2>Новый отдел</h2>
-            <form onSubmit={createDept}>
+            <form onSubmit={createDepartment}>
               <div className="form-group">
-                <label>Название</label>
-                <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-              </div>
-              <div className="form-group">
-                <label>Описание</label>
-                <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+                <label>Название отдела</label>
+                <input
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="Например: Производство"
+                  autoFocus
+                />
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)}>Отмена</button>
@@ -124,6 +122,15 @@ export default function Departments() {
             </form>
           </div>
         </div>
+      )}
+
+      {departmentToDelete && (
+        <ConfirmDeleteModal
+          title="Удалить отдел?"
+          message={`Отдел "${departmentToDelete.name}" будет удалён без возможности восстановления.`}
+          onCancel={() => setDepartmentToDelete(null)}
+          onConfirm={deleteDepartment}
+        />
       )}
     </div>
   );

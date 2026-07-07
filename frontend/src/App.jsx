@@ -8,14 +8,13 @@ import BoardDetail from "./pages/BoardDetail";
 import Calendar from "./pages/Calendar";
 import Departments from "./pages/Departments";
 import DepartmentDetail from "./pages/DepartmentDetail";
-import Reports from "./pages/Reports";
-import Approvals from "./pages/Approvals";
 
 export const UserContext = createContext(null);
 
 function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -25,6 +24,15 @@ function App() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((currentTheme) => currentTheme === "dark" ? "light" : "dark");
+  };
 
   if (loading) return <div className="loading">Загрузка...</div>;
 
@@ -40,17 +48,21 @@ function App() {
   return (
     <UserContext.Provider value={user}>
       <div className="app-layout">
-        <Sidebar user={user} onLogout={() => { localStorage.removeItem("token"); setUser(null); }} />
+        <Sidebar
+          user={user}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          onLogout={() => { localStorage.removeItem("token"); setUser(null); }}
+        />
         <main className="main-content">
           <Routes>
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/" element={<Navigate to="/boards" />} />
+            <Route path="/boards" element={<Dashboard />} />
             <Route path="/boards/:id" element={<BoardDetail />} />
             <Route path="/calendar" element={<Calendar />} />
             <Route path="/departments" element={<Departments />} />
             <Route path="/departments/:id" element={<DepartmentDetail />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/approvals" element={<Approvals />} />
-            <Route path="*" element={<Navigate to="/" />} />
+            <Route path="*" element={<Navigate to="/boards" />} />
           </Routes>
         </main>
       </div>

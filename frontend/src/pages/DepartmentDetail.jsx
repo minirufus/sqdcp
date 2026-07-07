@@ -1,35 +1,62 @@
-import { useState, useEffect, useContext } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
-import { UserContext } from "../App";
-import { ArrowLeft, Users, Columns3, Edit3 } from "lucide-react";
+import { ArrowLeft, Save, Trash2 } from "lucide-react";
+import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 
 export default function DepartmentDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const user = useContext(UserContext);
-  const [dept, setDept] = useState(null);
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ name: "", description: "" });
+  const [department, setDepartment] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
-  const canEdit = user.role === "admin" || user.department_id === Number(id);
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        setDepartment(await api.getDepartment(id));
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const load = async () => {
-    const d = await api.getDepartment(id);
-    setDept(d);
-    setForm({ name: d.name, description: d.description });
-  };
-
-  useEffect(() => { load(); }, [id]);
-
-  const saveDept = async (e) => {
-    e.preventDefault();
-    await api.updateDepartment(id, form);
-    setEditing(false);
     load();
+  }, [id]);
+
+  const updateField = (field, value) => {
+    setDepartment({ ...department, [field]: value });
   };
 
-  if (!dept) return <div className="loading">Загрузка...</div>;
+  const saveDepartment = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      setDepartment(await api.updateDepartment(id, {
+        name: department.name,
+        head: department.head,
+        workers: department.workers,
+      }));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteDepartment = async () => {
+    await api.deleteDepartment(id);
+    setShowDeleteConfirm(false);
+    navigate("/departments");
+  };
+
+  if (loading) return <div className="loading-panel">Загрузка...</div>;
+  if (error && !department) return <div className="form-error">{error}</div>;
 
   return (
     <div>
@@ -38,77 +65,95 @@ export default function DepartmentDetail() {
           <button className="btn btn-ghost btn-sm" onClick={() => navigate("/departments")}>
             <ArrowLeft size={18} />
           </button>
-          <h1>{dept.name}</h1>
+          <div>
+            <h1>Отдел</h1>
+            <p className="page-subtitle">Редактирование сведений об отделе</p>
+          </div>
         </div>
-        {canEdit && !editing && (
-          <button className="btn btn-ghost" onClick={() => setEditing(true)}>
-            <Edit3 size={16} style={{ verticalAlign: "middle", marginRight: 6 }} />
-            Редактировать
+        <div className="board-actions">
+          <button className="btn btn-primary" onClick={saveDepartment} disabled={saving}>
+            <Save size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
+            {saving ? "Сохранение..." : "Сохранить"}
           </button>
-        )}
-      </div>
-
-      {editing ? (
-        <div className="card" style={{ marginBottom: "1.5rem" }}>
-          <form onSubmit={saveDept}>
-            <div className="form-group">
-              <label>Название</label>
-              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-            </div>
-            <div className="form-group">
-              <label>Описание</label>
-              <input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-            </div>
-            <div className="modal-actions">
-              <button type="button" className="btn btn-ghost" onClick={() => setEditing(false)}>Отмена</button>
-              <button type="submit" className="btn btn-primary">Сохранить</button>
-            </div>
-          </form>
-        </div>
-      ) : (
-        <div className="card" style={{ marginBottom: "1.5rem" }}>
-          <p style={{ color: "var(--text-secondary)" }}>{dept.description || "Нет описания"}</p>
-        </div>
-      )}
-
-      <div className="grid grid-2" style={{ marginBottom: "1.5rem" }}>
-        <div className="card stat-card">
-          <Users size={24} color="var(--accent)" style={{ marginBottom: 8 }} />
-          <div className="stat-value">{dept.users?.length || 0}</div>
-          <div className="stat-label">Сотрудники</div>
-        </div>
-        <div className="card stat-card">
-          <Columns3 size={24} color="var(--accent)" style={{ marginBottom: 8 }} />
-          <div className="stat-value">{dept.boards?.length || 0}</div>
-          <div className="stat-label">Доски</div>
+          <button className="btn btn-danger" onClick={() => setShowDeleteConfirm(true)}>
+            <Trash2 size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
+            Удалить отдел
+          </button>
         </div>
       </div>
 
-      <h2 style={{ marginBottom: "1rem", fontSize: "1.15rem" }}>Сотрудники</h2>
-      {dept.users?.length === 0 ? (
-        <p style={{ color: "var(--text-secondary)" }}>Нет сотрудников в этом отделе</p>
-      ) : (
-        <div style={{ display: "grid", gap: "0.5rem", marginBottom: "1.5rem" }}>
-          {dept.users?.map((u) => (
-            <div key={u.id} className="card" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.75rem 1rem" }}>
-              <span>{u.username}</span>
-              <span style={{ fontSize: "0.8rem", color: "var(--text-secondary)" }}>{u.role}</span>
-            </div>
-          ))}
-        </div>
-      )}
+      {error && <div className="form-error">{error}</div>}
 
-      <h2 style={{ marginBottom: "1rem", fontSize: "1.15rem" }}>Доски</h2>
-      {dept.boards?.length === 0 ? (
-        <p style={{ color: "var(--text-secondary)" }}>Нет досок в этом отделе</p>
-      ) : (
-        <div className="boards-grid">
-          {dept.boards?.map((b) => (
-            <div key={b.id} className="card board-card" onClick={() => navigate(`/boards/${b.id}`)}>
-              <h3>{b.title}</h3>
-            </div>
-          ))}
+      <div className="department-detail-panel">
+        <div className="form-group">
+          <label>Название отдела</label>
+          <input
+            value={department.name || ""}
+            onChange={(event) => updateField("name", event.target.value)}
+          />
         </div>
+        <div className="form-group">
+          <label>Заведующий</label>
+          <input
+            value={department.head || ""}
+            onChange={(event) => updateField("head", event.target.value)}
+            placeholder="ФИО заведующего"
+          />
+        </div>
+        <div className="form-group">
+          <label>Работники</label>
+          <textarea
+            value={department.workers || ""}
+            onChange={(event) => updateField("workers", event.target.value)}
+            placeholder="Список работников"
+            rows={10}
+          />
+        </div>
+        <div className="form-group">
+          <label>Участвуют в:</label>
+          {department.participating_boards?.length > 0 ? (
+            <div className="department-participation-list">
+              {department.participating_boards.map((board) => (
+                <button
+                  key={board.id}
+                  type="button"
+                  className="department-participation-item"
+                  onClick={() => navigate(`/boards/${board.id}`)}
+                >
+                  {board.title}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="department-empty-participation">Отдел пока не добавлен ни в одну доску.</div>
+          )}
+        </div>
+        <div className="form-group">
+          <label>Назначенные задачи:</label>
+          {department.assigned_tasks?.length > 0 ? (
+            <div className="department-task-list">
+              {department.assigned_tasks.map((task) => (
+                <div key={task.id} className="department-task-item">
+                  <strong>{task.name}</strong>
+                  <span>{task.board_title}</span>
+                  {task.assignees && <small>Ответственные: {task.assignees}</small>}
+                  {task.description && <p>{task.description}</p>}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="department-empty-participation">Этому отделу пока не назначены задачи.</div>
+          )}
+        </div>
+      </div>
+
+      {showDeleteConfirm && (
+        <ConfirmDeleteModal
+          title="Удалить отдел?"
+          message={`Отдел "${department.name}" будет удалён без возможности восстановления.`}
+          onCancel={() => setShowDeleteConfirm(false)}
+          onConfirm={deleteDepartment}
+        />
       )}
     </div>
   );

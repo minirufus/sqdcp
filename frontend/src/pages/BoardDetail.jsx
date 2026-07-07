@@ -1,371 +1,766 @@
-import { useState, useEffect, useContext } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useParams, useNavigate, useBlocker } from "react-router-dom";
 import { api } from "../api/client";
-import { UserContext } from "../App";
-import { Plus, Trash2, ArrowLeft, Settings, PlusCircle, MinusCircle } from "lucide-react";
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  LineChart, Line, PieChart, Pie, Cell, AreaChart, Area,
-} from "recharts";
+import { ArrowLeft, CalendarDays, GripVertical, Plus, Save, Trash2 } from "lucide-react";
+import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 
-const COLORS = ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"];
-
-const sampleData = [
-  { name: "Янв", value: 400 }, { name: "Фев", value: 300 }, { name: "Мар", value: 600 },
-  { name: "Апр", value: 800 }, { name: "Май", value: 500 }, { name: "Июн", value: 700 },
+const DEFAULT_COLUMNS = [
+  { key: "safety", label: "Safety", description: "безопасность" },
+  { key: "quality", label: "Quality", description: "качество" },
+  { key: "delivery", label: "Delivery", description: "сроки" },
+  { key: "cost", label: "Cost", description: "стоимость" },
+  { key: "people", label: "People", description: "персонал" },
 ];
+const TASK_STATUSES = [
+  { value: "not_started", label: "не начата" },
+  { value: "in_progress", label: "в работе" },
+  { value: "done", label: "выполнена" },
+];
+const TASK_STATUS_VALUES = new Set(TASK_STATUSES.map((status) => status.value));
 
-function ChartRenderer({ chart }) {
-  const config = (() => { try { return JSON.parse(chart.config); } catch { return {}; } })();
-  const data = config.data || sampleData;
-  const columns = config.columns || ["value"];
-  const type = chart.chart_type;
-  const commonProps = { data, margin: { top: 5, right: 20, left: 0, bottom: 5 } };
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
 
-  const renderChart = () => {
-    switch (type) {
-      case "bar":
-        return (
-          <BarChart {...commonProps}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2a3f54" />
-            <XAxis dataKey="name" stroke="#8899aa" fontSize={12} />
-            <YAxis stroke="#8899aa" fontSize={12} />
-            <Tooltip contentStyle={{ background: "#1b2838", border: "1px solid #2a3f54", borderRadius: 8 }} />
-            {columns.map((col, idx) => (
-              <Bar key={col} dataKey={col} fill={COLORS[idx % COLORS.length]} radius={[4, 4, 0, 0]} />
-            ))}
-          </BarChart>
-        );
-      case "line":
-        return (
-          <LineChart {...commonProps}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2a3f54" />
-            <XAxis dataKey="name" stroke="#8899aa" fontSize={12} />
-            <YAxis stroke="#8899aa" fontSize={12} />
-            <Tooltip contentStyle={{ background: "#1b2838", border: "1px solid #2a3f54", borderRadius: 8 }} />
-            {columns.map((col, idx) => (
-              <Line key={col} type="monotone" dataKey={col} stroke={COLORS[idx % COLORS.length]} strokeWidth={2} dot={{ fill: COLORS[idx % COLORS.length] }} />
-            ))}
-          </LineChart>
-        );
-      case "area":
-        return (
-          <AreaChart {...commonProps}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2a3f54" />
-            <XAxis dataKey="name" stroke="#8899aa" fontSize={12} />
-            <YAxis stroke="#8899aa" fontSize={12} />
-            <Tooltip contentStyle={{ background: "#1b2838", border: "1px solid #2a3f54", borderRadius: 8 }} />
-            {columns.map((col, idx) => (
-              <Area key={col} type="monotone" dataKey={col} stroke={COLORS[idx % COLORS.length]} fill={COLORS[idx % COLORS.length]} fillOpacity={0.2} />
-            ))}
-          </AreaChart>
-        );
-      case "pie":
-        return (
-          <PieChart>
-            <Pie data={data} dataKey={columns[0] || "value"} nameKey="name" cx="50%" cy="50%" outerRadius={100} label>
-              {data.map((_, idx) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
-            </Pie>
-            <Tooltip contentStyle={{ background: "#1b2838", border: "1px solid #2a3f54", borderRadius: 8 }} />
-          </PieChart>
-        );
-      default:
-        return (
-          <BarChart {...commonProps}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2a3f54" />
-            <XAxis dataKey="name" stroke="#8899aa" fontSize={12} />
-            <YAxis stroke="#8899aa" fontSize={12} />
-            <Tooltip contentStyle={{ background: "#1b2838", border: "1px solid #2a3f54", borderRadius: 8 }} />
-            {columns.map((col, idx) => (
-              <Bar key={col} dataKey={col} fill={COLORS[idx % COLORS.length]} radius={[4, 4, 0, 0]} />
-            ))}
-          </BarChart>
-        );
-    }
-  };
+function normalizeRows(rows) {
+  return rows.map((row, idx) => ({
+    id: row.id || `new-${idx}`,
+    department_id: row.department_id || null,
+    team_name: row.team_name || `Команда ${idx + 1}`,
+    position: idx,
+    safety: row.safety || "",
+    quality: row.quality || "",
+    delivery: row.delivery || "",
+    cost: row.cost || "",
+    people: row.people || "",
+  }));
+}
 
-  return (
-    <div className="card" style={{ padding: "1rem" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
-        <h3 style={{ fontSize: "0.95rem" }}>{chart.title}</h3>
-        <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)", background: "var(--accent-light)", padding: "2px 8px", borderRadius: 4 }}>
-          {chart.chart_type === "bar" ? "Столбчатая" : chart.chart_type === "line" ? "Линейная" : chart.chart_type === "area" ? "Область" : chart.chart_type === "pie" ? "Круговая" : chart.chart_type}
-        </span>
-      </div>
-      <div className="chart-container">
-        <ResponsiveContainer width="100%" height="100%">{renderChart()}</ResponsiveContainer>
-      </div>
-    </div>
-  );
+function createBoardSnapshot(board, rows) {
+  return JSON.stringify({
+    title: board?.title || "",
+    board_date: board?.board_date || todayKey(),
+    rows: rows.map((row, idx) => ({
+      team_name: row.team_name || "",
+      department_id: row.department_id || null,
+      position: idx,
+      safety: row.safety || "",
+      quality: row.quality || "",
+      delivery: row.delivery || "",
+      cost: row.cost || "",
+      people: row.people || "",
+    })),
+  });
+}
+
+function createRowsPayload(rows) {
+  return rows.map((row, idx) => ({
+    id: typeof row.id === "number" ? row.id : null,
+    team_name: row.team_name,
+    department_id: row.department_id || null,
+    position: idx,
+    safety: row.safety,
+    quality: row.quality,
+    delivery: row.delivery,
+    cost: row.cost,
+    people: row.people,
+  }));
+}
+
+function normalizeTaskStatus(status) {
+  return TASK_STATUS_VALUES.has(status) ? status : "not_started";
+}
+
+function taskStatusClass(task) {
+  return `task-status-${normalizeTaskStatus(task.status)}`;
 }
 
 export default function BoardDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const user = useContext(UserContext);
   const [board, setBoard] = useState(null);
-  const [charts, setCharts] = useState([]);
-  const [showCreate, setShowCreate] = useState(false);
-  const [showEdit, setShowEdit] = useState(null);
-  const [form, setForm] = useState({ title: "", chart_type: "bar", config: "" });
-  const [valueColumns, setValueColumns] = useState(["value"]);
-  const [dataRows, setDataRows] = useState([{ name: "", value: "" }]);
+  const [rows, setRows] = useState([]);
+  const [columns, setColumns] = useState(DEFAULT_COLUMNS);
+  const [departments, setDepartments] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [showTaskCreate, setShowTaskCreate] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [taskForm, setTaskForm] = useState({ name: "", description: "", assignees: "" });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDepartmentPicker, setShowDepartmentPicker] = useState(false);
+  const [savedSnapshot, setSavedSnapshot] = useState("");
+  const [error, setError] = useState("");
+  const [draggedRowIndex, setDraggedRowIndex] = useState(null);
+  const [dragOverRowIndex, setDragOverRowIndex] = useState(null);
+  const [draggedTaskId, setDraggedTaskId] = useState(null);
+  const [taskDropTarget, setTaskDropTarget] = useState("");
+  const [isUnassignedTaskDropTarget, setIsUnassignedTaskDropTarget] = useState(false);
+  const bypassUnsavedPromptRef = useRef(false);
 
-  const canEdit = board?.can_edit && user?.role !== "viewer";
-
-  const load = async () => {
-    const b = await api.getBoards();
-    const found = b.find((x) => x.id === Number(id));
-    setBoard(found);
-    setCharts(await api.getCharts(id));
-  };
-
-  useEffect(() => { load(); }, [id]);
-
-  const buildConfig = () => {
-    const rows = dataRows.filter((r) => r.name.trim() !== "");
-    if (rows.length === 0) return "{}";
-    const data = rows.map((r) => {
-      const entry = { name: r.name };
-      valueColumns.forEach((col) => { entry[col] = Number(r[col]) || 0; });
-      return entry;
+  const currentSnapshot = useMemo(() => (
+    board ? createBoardSnapshot(board, rows) : ""
+  ), [board, rows]);
+  const departmentsById = useMemo(() => (
+    new Map(departments.map((department) => [Number(department.id), department]))
+  ), [departments]);
+  const unassignedTasks = useMemo(() => (
+    tasks.filter((task) => !task.row_id || !task.column_key)
+  ), [tasks]);
+  const tasksByCell = useMemo(() => {
+    const result = new Map();
+    tasks.forEach((task) => {
+      if (!task.row_id || !task.column_key) return;
+      const key = `${task.row_id}:${task.column_key}`;
+      result.set(key, [...(result.get(key) || []), task]);
     });
-    return JSON.stringify({ columns: valueColumns, data });
+    return result;
+  }, [tasks]);
+  const hasUnsavedChanges = Boolean(savedSnapshot && currentSnapshot && savedSnapshot !== currentSnapshot);
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => (
+    hasUnsavedChanges
+    && !bypassUnsavedPromptRef.current
+    && currentLocation.pathname !== nextLocation.pathname
+  ));
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const [data, departmentList] = await Promise.all([
+        api.getBoard(id),
+        api.getDepartments(),
+      ]);
+      const normalizedRows = normalizeRows(data.rows || []);
+      setBoard(data);
+      setRows(normalizedRows);
+      setColumns(data.columns || DEFAULT_COLUMNS);
+      setDepartments(departmentList);
+      setTasks(data.tasks || []);
+      setSavedSnapshot(createBoardSnapshot(data, normalizedRows));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return undefined;
+
+    const handleBeforeUnload = (event) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  useEffect(() => {
+    if (blocker.state === "blocked" && !hasUnsavedChanges) {
+      blocker.proceed();
+    }
+  }, [blocker, hasUnsavedChanges]);
+
+  const updateTeamName = (idx, value) => {
+    setRows(rows.map((row, rowIdx) => rowIdx === idx ? { ...row, team_name: value } : row));
   };
 
-  const createChart = async (e) => {
-    e.preventDefault();
-    await api.createChart(id, { ...form, config: buildConfig() });
-    setShowCreate(false);
-    resetForm();
-    load();
+  const updateCell = (idx, key, value) => {
+    setRows(rows.map((row, rowIdx) => rowIdx === idx ? { ...row, [key]: value } : row));
   };
 
-  const updateChart = async (e) => {
-    e.preventDefault();
-    await api.updateChart(id, showEdit.id, { ...form, config: buildConfig() });
-    setShowEdit(null);
-    resetForm();
-    load();
+  const resizeTextarea = (element) => {
+    element.style.height = "auto";
+    element.style.height = `${element.scrollHeight}px`;
   };
 
-  const deleteChart = async (chartId) => {
-    await api.deleteChart(id, chartId);
-    load();
-  };
-
-  const resetForm = () => {
-    setForm({ title: "", chart_type: "bar", config: "" });
-    setValueColumns(["value"]);
-    setDataRows([{ name: "", value: "" }]);
-  };
-
-  const openEdit = (chart) => {
-    setForm({ title: chart.title, chart_type: chart.chart_type, config: chart.config });
-    const parsed = (() => { try { return JSON.parse(chart.config); } catch { return {}; } })();
-    const cols = parsed.columns || ["value"];
-    setValueColumns(cols);
-    const existing = (parsed.data || []).map((d) => {
-      const row = { name: d.name };
-      cols.forEach((col) => { row[col] = String(d[col] ?? ""); });
-      return row;
-    });
-    setDataRows(existing.length > 0 ? existing : [{ name: "", ...Object.fromEntries(cols.map((c) => [c, ""])) }]);
-    setShowEdit(chart);
-  };
-
-  const openCreate = () => {
-    resetForm();
-    setShowCreate(true);
+  const handleCellChange = (idx, key, event) => {
+    resizeTextarea(event.target);
+    updateCell(idx, key, event.target.value);
   };
 
   const addRow = () => {
-    const newRow = { name: "", ...Object.fromEntries(valueColumns.map((c) => [c, ""])) };
-    setDataRows([...dataRows, newRow]);
-  };
-  const removeRow = (idx) => setDataRows(dataRows.filter((_, i) => i !== idx));
-  const updateRow = (idx, field, val) => {
-    const rows = [...dataRows];
-    rows[idx][field] = val;
-    setDataRows(rows);
-  };
-
-  const addColumn = () => {
-    const newCol = "value" + (valueColumns.length > 1 ? valueColumns.length : "");
-    setValueColumns([...valueColumns, newCol]);
-    setDataRows(dataRows.map((r) => ({ ...r, [newCol]: "" })));
-  };
-  const removeColumn = (col) => {
-    if (valueColumns.length <= 1) return;
-    setValueColumns(valueColumns.filter((c) => c !== col));
-    setDataRows(dataRows.map((r) => {
-      const { [col]: _, ...rest } = r;
-      return rest;
-    }));
-  };
-  const renameColumn = (oldCol, newCol) => {
-    if (!newCol.trim() || newCol === oldCol) return;
-    setValueColumns(valueColumns.map((c) => (c === oldCol ? newCol : c)));
-    setDataRows(dataRows.map((r) => {
-      const { [oldCol]: val, ...rest } = r;
-      return { ...rest, [newCol]: val };
-    }));
+    setRows([
+      ...rows,
+      {
+        id: `new-${Date.now()}`,
+        team_name: `Команда ${rows.length + 1}`,
+        department_id: null,
+        position: rows.length,
+        safety: "",
+        quality: "",
+        delivery: "",
+        cost: "",
+        people: "",
+      },
+    ]);
   };
 
-  function DataEditor() {
-    return (
-      <div className="form-group" style={{ marginTop: 12 }}>
-        <label style={{ marginBottom: 6 }}>Данные</label>
-        <div style={{ display: "flex", gap: 6, marginBottom: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)", minWidth: 60 }}>Столбцы:</span>
-          {valueColumns.map((col) => (
-            <div key={col} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <input
-                value={col}
-                onChange={(e) => renameColumn(col, e.target.value)}
-                style={{ width: 90, padding: "2px 6px", fontSize: "0.8rem" }}
-              />
-              {valueColumns.length > 1 && (
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeColumn(col)} style={{ padding: 2 }}>
-                  <MinusCircle size={14} />
-                </button>
-              )}
-            </div>
-          ))}
-          <button type="button" className="btn btn-ghost btn-sm" onClick={addColumn}>
-            <PlusCircle size={14} style={{ verticalAlign: "middle", marginRight: 2 }} />
-            Столбец
-          </button>
-        </div>
-        {dataRows.map((row, idx) => (
-          <div key={idx} style={{ display: "flex", gap: 6, marginBottom: 6, alignItems: "center" }}>
-            <input
-              placeholder="Название"
-              value={row.name}
-              onChange={(e) => updateRow(idx, "name", e.target.value)}
-              style={{ flex: 1, minWidth: 80 }}
-            />
-            {valueColumns.map((col) => (
-              <input
-                key={col}
-                placeholder={col}
-                type="number"
-                value={row[col] ?? ""}
-                onChange={(e) => updateRow(idx, col, e.target.value)}
-                style={{ width: 90 }}
-              />
-            ))}
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => removeRow(idx)} disabled={dataRows.length === 1}>
-              <MinusCircle size={16} />
-            </button>
-          </div>
-        ))}
-        <button type="button" className="btn btn-ghost btn-sm" onClick={addRow}>
-          <PlusCircle size={16} style={{ verticalAlign: "middle", marginRight: 4 }} />
-          Добавить строку
-        </button>
-      </div>
-    );
-  }
+  const addDepartmentRow = (department) => {
+    setRows([
+      ...rows,
+      {
+        id: `new-department-${department.id}-${Date.now()}`,
+        department_id: department.id,
+        team_name: department.name,
+        position: rows.length,
+        safety: "",
+        quality: "",
+        delivery: "",
+        cost: "",
+        people: "",
+      },
+    ]);
+    setShowDepartmentPicker(false);
+  };
 
-  if (!board) return <div className="loading">Загрузка...</div>;
+  const deleteRow = (idx) => {
+    setRows(rows.filter((_, rowIdx) => rowIdx !== idx).map((row, rowIdx) => ({ ...row, position: rowIdx })));
+  };
+
+  const moveRow = (fromIdx, toIdx) => {
+    if (fromIdx === toIdx || fromIdx < 0 || toIdx < 0) return;
+
+    setRows((currentRows) => {
+      if (fromIdx >= currentRows.length || toIdx >= currentRows.length) return currentRows;
+
+      const nextRows = [...currentRows];
+      const [movedRow] = nextRows.splice(fromIdx, 1);
+      nextRows.splice(toIdx, 0, movedRow);
+      return nextRows.map((row, rowIdx) => ({ ...row, position: rowIdx }));
+    });
+  };
+
+  const handleRowDragStart = (idx, event) => {
+    setDraggedRowIndex(idx);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", String(idx));
+  };
+
+  const handleRowDrop = (idx, event) => {
+    event.preventDefault();
+    const sourceIndex = draggedRowIndex ?? Number(event.dataTransfer.getData("text/plain"));
+    if (Number.isInteger(sourceIndex)) {
+      moveRow(sourceIndex, idx);
+    }
+    setDraggedRowIndex(null);
+    setDragOverRowIndex(null);
+  };
+
+  const handleRowDragEnd = () => {
+    setDraggedRowIndex(null);
+    setDragOverRowIndex(null);
+  };
+
+  const createTask = async (event) => {
+    event.preventDefault();
+    setError("");
+    try {
+      const task = await api.createBoardTask(id, taskForm);
+      setTasks([...tasks, task]);
+      setTaskForm({ name: "", description: "", assignees: "" });
+      setShowTaskCreate(false);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const deleteSelectedTask = async () => {
+    if (!selectedTask) return;
+    await api.deleteBoardTask(id, selectedTask.id);
+    setTasks(tasks.filter((task) => task.id !== selectedTask.id));
+    setSelectedTask(null);
+  };
+
+  const updateSelectedTaskStatus = async (status) => {
+    if (!selectedTask) return;
+
+    try {
+      setError("");
+      const updatedTask = await api.updateBoardTask(id, selectedTask.id, { status });
+      setSelectedTask(updatedTask);
+      setTasks((currentTasks) => currentTasks.map((task) => (
+        task.id === updatedTask.id ? updatedTask : task
+      )));
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleTaskDragStart = (task, event) => {
+    setDraggedTaskId(task.id);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", String(task.id));
+  };
+
+  const handleTaskDragEnd = () => {
+    setDraggedTaskId(null);
+    setTaskDropTarget("");
+    setIsUnassignedTaskDropTarget(false);
+  };
+
+  const assignTaskToCell = async (row, columnKey, event) => {
+    event.preventDefault();
+    if (draggedTaskId === null) return;
+
+    if (typeof row.id !== "number") {
+      setError("Сначала сохраните доску, чтобы распределить задачу в новую строку.");
+      setTaskDropTarget("");
+      setDraggedTaskId(null);
+      return;
+    }
+
+    const taskId = draggedTaskId;
+
+    try {
+      setError("");
+      setTaskDropTarget("");
+      const updatedTask = await api.updateBoardTask(id, taskId, {
+        row_id: row.id,
+        column_key: columnKey,
+      });
+      setTasks(tasks.map((task) => task.id === updatedTask.id ? updatedTask : task));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDraggedTaskId(null);
+    }
+  };
+
+  const unassignTask = async (event) => {
+    event.preventDefault();
+    const rawTaskId = event.dataTransfer.getData("text/plain");
+    const fallbackTaskId = rawTaskId ? Number(rawTaskId) : null;
+    const taskId = draggedTaskId ?? (Number.isInteger(fallbackTaskId) ? fallbackTaskId : null);
+    if (taskId === null) return;
+
+    try {
+      setError("");
+      setTaskDropTarget("");
+      setIsUnassignedTaskDropTarget(false);
+      const updatedTask = await api.updateBoardTask(id, taskId, {
+        row_id: null,
+        column_key: "",
+      });
+      setTasks((currentTasks) => currentTasks.map((task) => (
+        task.id === updatedTask.id ? updatedTask : task
+      )));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDraggedTaskId(null);
+    }
+  };
+
+  const saveBoard = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      const data = await api.updateBoard(id, {
+        title: board.title,
+        board_date: board.board_date || todayKey(),
+        rows: createRowsPayload(rows),
+      });
+      const normalizedRows = normalizeRows(data.rows || []);
+      setBoard(data);
+      setRows(normalizedRows);
+      setColumns(data.columns || DEFAULT_COLUMNS);
+      setTasks(data.tasks || tasks);
+      setSavedSnapshot(createBoardSnapshot(data, normalizedRows));
+      return true;
+    } catch (err) {
+      setError(err.message);
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteCurrentBoard = async () => {
+    bypassUnsavedPromptRef.current = true;
+    await api.deleteBoard(id);
+    setShowDeleteConfirm(false);
+    navigate("/boards");
+  };
+
+  const saveAndLeaveBoard = async () => {
+    const saved = await saveBoard();
+    if (saved && blocker.state === "blocked") {
+      blocker.proceed();
+    }
+  };
+
+  const discardAndLeaveBoard = () => {
+    if (blocker.state === "blocked") {
+      blocker.proceed();
+    }
+  };
+
+  if (loading) return <div className="loading-panel">Загрузка...</div>;
+  if (error && !board) return <div className="form-error">{error}</div>;
 
   return (
     <div>
       <div className="page-header">
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-          <button className="btn btn-ghost btn-sm" onClick={() => navigate("/")}>
+          <button className="btn btn-ghost btn-sm" onClick={() => navigate("/boards")}>
             <ArrowLeft size={18} />
           </button>
-          <div>
-            <h1>{board.title}</h1>
-            <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem" }}>{board.description}</p>
+          <div className="board-edit-fields">
+            <label>
+              Название
+              <textarea
+                value={board.title}
+                onChange={(e) => {
+                  resizeTextarea(e.target);
+                  setBoard({ ...board, title: e.target.value });
+                }}
+                ref={(element) => { if (element) resizeTextarea(element); }}
+                aria-label="Название доски"
+                rows={1}
+              />
+            </label>
           </div>
         </div>
-        {canEdit && (
-          <button className="btn btn-primary" onClick={openCreate}>
-            <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
-            Добавить график
+        <div className="board-actions">
+          <label className="date-picker-control">
+            <CalendarDays size={18} />
+            <input
+              type="date"
+              value={board.board_date || todayKey()}
+              onChange={(e) => setBoard({ ...board, board_date: e.target.value })}
+            />
+          </label>
+          <button className="btn btn-primary" onClick={saveBoard} disabled={saving}>
+            <Save size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
+            {saving ? "Сохранение..." : "Сохранить"}
           </button>
-        )}
+          <button className="btn btn-danger" onClick={() => setShowDeleteConfirm(true)}>
+            <Trash2 size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
+            Удалить доску
+          </button>
+        </div>
       </div>
 
-      {charts.length === 0 ? (
-        <div className="card" style={{ textAlign: "center", padding: "3rem" }}>
-          <p style={{ color: "var(--text-secondary)" }}>Нет графиков. Добавьте первый график на доску!</p>
+      {error && <div className="form-error">{error}</div>}
+
+      <div className="sqdcp-table-wrap">
+        <table className="sqdcp-table">
+          <thead>
+            <tr>
+              <th className="team-column">Команда</th>
+              {columns.map((column) => (
+                <th key={column.key} className={`sqdcp-header sqdcp-header-${column.key}`}>
+                  <span>{column.label}</span>
+                  <small>{column.description}</small>
+                </th>
+              ))}
+              <th className="row-action-column" aria-label="Действия"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, idx) => {
+              const linkedDepartment = row.department_id ? departmentsById.get(Number(row.department_id)) : null;
+
+              return (
+                <tr
+                key={row.id}
+                className={[
+                  draggedRowIndex === idx ? "row-dragging" : "",
+                  draggedRowIndex !== null && dragOverRowIndex === idx && draggedRowIndex !== idx ? "row-drop-target" : "",
+                ].filter(Boolean).join(" ")}
+                onDragOver={(event) => {
+                  if (draggedRowIndex === null) return;
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                  setDragOverRowIndex(idx);
+                }}
+                onDragLeave={() => {
+                  if (dragOverRowIndex === idx) setDragOverRowIndex(null);
+                }}
+                onDrop={(event) => {
+                  if (draggedRowIndex !== null) handleRowDrop(idx, event);
+                }}
+              >
+                <td className="team-cell">
+                  <textarea
+                    value={row.team_name}
+                    onChange={(e) => {
+                      resizeTextarea(e.target);
+                      updateTeamName(idx, e.target.value);
+                    }}
+                    ref={(element) => { if (element) resizeTextarea(element); }}
+                    aria-label={`Название команды ${idx + 1}`}
+                    rows={1}
+                  />
+                  {linkedDepartment?.head && (
+                    <small className="team-cell-head">{linkedDepartment.head}</small>
+                  )}
+                </td>
+                {columns.map((column) => {
+                  const cellKey = `${row.id}:${column.key}`;
+                  const assignedTasks = tasksByCell.get(cellKey) || [];
+
+                  return (
+                    <td
+                      key={column.key}
+                      className={`sqdcp-edit-cell${taskDropTarget === cellKey ? " task-drop-target" : ""}`}
+                      onDragOver={(event) => {
+                        if (!draggedTaskId) return;
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = "move";
+                        setTaskDropTarget(cellKey);
+                      }}
+                      onDragLeave={() => {
+                        if (taskDropTarget === cellKey) setTaskDropTarget("");
+                      }}
+                      onDrop={(event) => assignTaskToCell(row, column.key, event)}
+                    >
+                      <textarea
+                        value={row[column.key] || ""}
+                        onChange={(e) => handleCellChange(idx, column.key, e)}
+                        ref={(element) => { if (element) resizeTextarea(element); }}
+                        aria-label={`${column.label}, ${row.team_name}`}
+                      />
+                      {assignedTasks.length > 0 && (
+                        <div className="cell-task-list">
+                          {assignedTasks.map((task) => (
+                            <button
+                              key={task.id}
+                              type="button"
+                              className={`task-pill ${taskStatusClass(task)}`}
+                              draggable
+                              onDragStart={(event) => handleTaskDragStart(task, event)}
+                              onDragEnd={handleTaskDragEnd}
+                              onClick={() => setSelectedTask(task)}
+                            >
+                              {task.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                  );
+                })}
+                <td className="row-action-cell">
+                  <div className="row-action-buttons">
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm row-drag-handle"
+                      draggable
+                      onDragStart={(event) => handleRowDragStart(idx, event)}
+                      onDragEnd={handleRowDragEnd}
+                      aria-label={`Переместить строку ${idx + 1}`}
+                      title="Переместить строку"
+                    >
+                      <GripVertical size={14} />
+                    </button>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => deleteRow(idx)} disabled={rows.length <= 1}>
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="board-bottom-actions">
+        <button className="btn btn-ghost" onClick={addRow}>
+          <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
+          Добавить новую команду
+        </button>
+        <button className="btn btn-ghost" onClick={() => setShowDepartmentPicker(true)}>
+          <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
+          Добавить существующий отдел
+        </button>
+      </div>
+
+      <section
+        className={`board-tasks-section${isUnassignedTaskDropTarget ? " task-drop-target" : ""}`}
+        onDragOver={(event) => {
+          if (draggedTaskId === null) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+          setIsUnassignedTaskDropTarget(true);
+        }}
+        onDragLeave={(event) => {
+          if (event.currentTarget.contains(event.relatedTarget)) return;
+          setIsUnassignedTaskDropTarget(false);
+        }}
+        onDrop={unassignTask}
+      >
+        <div className="board-tasks-header">
+          <div>
+            <h2>Задачи</h2>
+            <p className="page-subtitle">Нераспределённые задачи можно перетащить в ячейки SQDCP-таблицы.</p>
+          </div>
+          <button className="btn btn-primary" onClick={() => setShowTaskCreate(true)}>
+            <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
+            Добавить задачу
+          </button>
         </div>
-      ) : (
-        <div className="charts-grid">
-          {charts.map((c) => (
-            <div key={c.id} style={{ position: "relative" }}>
-              <ChartRenderer chart={c} />
-              {canEdit && (
-                <div style={{ position: "absolute", top: "0.5rem", right: "0.5rem", display: "flex", gap: "0.25rem" }}>
-                  <button className="btn btn-ghost btn-sm" onClick={() => openEdit(c)}>
-                    <Settings size={14} />
+
+        {unassignedTasks.length === 0 ? (
+          <div className="task-empty-state">Нераспределённых задач нет.</div>
+        ) : (
+          <div className="task-list">
+            {unassignedTasks.map((task) => (
+              <button
+                key={task.id}
+                type="button"
+                className={`task-card ${taskStatusClass(task)}`}
+                draggable
+                onDragStart={(event) => handleTaskDragStart(task, event)}
+                onDragEnd={handleTaskDragEnd}
+                onClick={() => setSelectedTask(task)}
+              >
+                <strong>{task.name}</strong>
+                {task.assignees && <span>{task.assignees}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {showDeleteConfirm && (
+        <ConfirmDeleteModal
+          title="Удалить доску?"
+          message={`Доска "${board.title}" будет удалена без возможности восстановления.`}
+          onCancel={() => setShowDeleteConfirm(false)}
+          onConfirm={deleteCurrentBoard}
+        />
+      )}
+
+      {showDepartmentPicker && (
+        <div className="modal-overlay" onClick={() => setShowDepartmentPicker(false)}>
+          <div className="modal department-picker-modal" onClick={(event) => event.stopPropagation()}>
+            <h2>Добавить существующий отдел</h2>
+            {departments.length === 0 ? (
+              <p className="confirm-modal-copy">Пока нет созданных отделов.</p>
+            ) : (
+              <div className="department-picker-list">
+                {departments.map((department) => (
+                  <button
+                    key={department.id}
+                    type="button"
+                    className="department-picker-item"
+                    onClick={() => addDepartmentRow(department)}
+                  >
+                    <strong>{department.name}</strong>
+                    <span>{department.head || "Заведующий не указан"}</span>
                   </button>
-                  <button className="btn btn-ghost btn-sm" onClick={() => deleteChart(c.id)}>
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              )}
+                ))}
+              </div>
+            )}
+            <div className="modal-actions">
+              <button type="button" className="btn btn-ghost" onClick={() => setShowDepartmentPicker(false)}>
+                Отмена
+              </button>
             </div>
-          ))}
+          </div>
         </div>
       )}
 
-      {showCreate && (
-        <div className="modal-overlay" onClick={() => setShowCreate(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Новый график</h2>
-            <form onSubmit={createChart}>
+      {showTaskCreate && (
+        <div className="modal-overlay" onClick={() => setShowTaskCreate(false)}>
+          <div className="modal" onClick={(event) => event.stopPropagation()}>
+            <h2>Новая задача</h2>
+            <form onSubmit={createTask}>
               <div className="form-group">
-                <label>Название</label>
-                <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
+                <label>Имя задачи</label>
+                <input
+                  value={taskForm.name}
+                  onChange={(event) => setTaskForm({ ...taskForm, name: event.target.value })}
+                  autoFocus
+                />
               </div>
               <div className="form-group">
-                <label>Тип графика</label>
-                <select value={form.chart_type} onChange={(e) => setForm({ ...form, chart_type: e.target.value })}>
-                  <option value="bar">Столбчатая</option>
-                  <option value="line">Линейная</option>
-                  <option value="area">Область</option>
-                  <option value="pie">Круговая</option>
-                </select>
+                <label>Описание задачи</label>
+                <textarea
+                  value={taskForm.description}
+                  onChange={(event) => setTaskForm({ ...taskForm, description: event.target.value })}
+                  rows={5}
+                />
               </div>
-              <DataEditor />
+              <div className="form-group">
+                <label>Ответственные</label>
+                <input
+                  value={taskForm.assignees}
+                  onChange={(event) => setTaskForm({ ...taskForm, assignees: event.target.value })}
+                />
+              </div>
               <div className="modal-actions">
-                <button type="button" className="btn btn-ghost" onClick={() => setShowCreate(false)}>Отмена</button>
-                <button type="submit" className="btn btn-primary">Создать</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowTaskCreate(false)}>
+                  Отмена
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Создать
+                </button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {showEdit && (
-        <div className="modal-overlay" onClick={() => setShowEdit(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Редактировать график</h2>
-            <form onSubmit={updateChart}>
+      {selectedTask && (
+        <div className="modal-overlay" onClick={() => setSelectedTask(null)}>
+          <div className="modal" onClick={(event) => event.stopPropagation()}>
+            <h2>{selectedTask.name}</h2>
+            <div className="task-detail">
               <div className="form-group">
-                <label>Название</label>
-                <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
-              </div>
-              <div className="form-group">
-                <label>Тип графика</label>
-                <select value={form.chart_type} onChange={(e) => setForm({ ...form, chart_type: e.target.value })}>
-                  <option value="bar">Столбчатая</option>
-                  <option value="line">Линейная</option>
-                  <option value="area">Область</option>
-                  <option value="pie">Круговая</option>
+                <label>Степень выполнения</label>
+                <select
+                  value={normalizeTaskStatus(selectedTask.status)}
+                  onChange={(event) => updateSelectedTaskStatus(event.target.value)}
+                >
+                  {TASK_STATUSES.map((status) => (
+                    <option key={status.value} value={status.value}>{status.label}</option>
+                  ))}
                 </select>
               </div>
-              <DataEditor />
-              <div className="modal-actions">
-                <button type="button" className="btn btn-ghost" onClick={() => setShowEdit(null)}>Отмена</button>
-                <button type="submit" className="btn btn-primary">Сохранить</button>
+              <div>
+                <span>Описание задачи</span>
+                <p>{selectedTask.description || "Описание не указано."}</p>
               </div>
-            </form>
+              <div>
+                <span>Ответственные</span>
+                <p>{selectedTask.assignees || "Ответственные не указаны."}</p>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-ghost" onClick={() => setSelectedTask(null)}>
+                Закрыть
+              </button>
+              <button type="button" className="btn btn-danger" onClick={deleteSelectedTask}>
+                Удалить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {blocker.state === "blocked" && (
+        <div className="modal-overlay">
+          <div className="modal confirm-modal">
+            <h2>Несохранённые изменения</h2>
+            <p className="confirm-modal-copy">
+              На доске есть изменения, которые ещё не сохранены. Что сделать перед выходом?
+            </p>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-ghost" onClick={discardAndLeaveBoard} disabled={saving}>
+                Отменить изменения
+              </button>
+              <button type="button" className="btn btn-primary" onClick={saveAndLeaveBoard} disabled={saving}>
+                {saving ? "Сохранение..." : "Сохранить изменения"}
+              </button>
+            </div>
           </div>
         </div>
       )}
