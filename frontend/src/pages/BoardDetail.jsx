@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import { ArrowLeft, GripVertical, Building2, CalendarDays, Plus, Save, Trash2, CheckCircle2, Circle, AlertCircle } from "lucide-react";
+import { ArrowLeft, GripVertical, CalendarDays, Plus, Save, Trash2, CheckCircle2, Circle, AlertCircle } from "lucide-react";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 
 const DEFAULT_COLUMNS = [
@@ -338,7 +338,6 @@ export default function BoardDetail() {
                     </span>
                     {row.department_id ? (
                       <div className="team-dept-name">
-                        <Building2 size={16} style={{ verticalAlign: "middle", marginRight: 6, opacity: 0.6 }} />
                         <div>
                           <div>{row.team_name}</div>
                           {row.head_name && <div style={{ fontSize: "0.72rem", color: "var(--text-secondary)", marginTop: 2 }}>{row.head_name}</div>}
