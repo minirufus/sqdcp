@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import { ArrowLeft, Building2 } from "lucide-react";
+import { ArrowLeft, Circle, CheckCircle2, AlertCircle } from "lucide-react";
 
 const SQDCP_LABELS = {
   safety: "Безопасность",
@@ -11,11 +11,15 @@ const SQDCP_LABELS = {
   people: "Персонал",
 };
 
+const STATUS_ICONS = { todo: Circle, in_progress: AlertCircle, done: CheckCircle2 };
+const STATUS_COLORS = { todo: "#6b7280", in_progress: "#f59e0b", done: "#22c55e" };
+
 export default function DepartmentDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [department, setDepartment] = useState(null);
   const [rows, setRows] = useState([]);
+  const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -24,14 +28,16 @@ export default function DepartmentDetail() {
       setLoading(true);
       setError("");
       try {
-        const [deptsData, rowsData] = await Promise.all([
+        const [deptsData, rowsData, tasksData] = await Promise.all([
           api.getDepartments(),
           api.getBoardRowsByDepartment(id),
+          api.getTasksByDepartment(id),
         ]);
         const dept = deptsData.find((d) => d.id === Number(id));
         if (dept) setDepartment(dept);
         else setError("Отдел не найден");
         setRows(rowsData);
+        setTasks(tasksData || []);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -40,6 +46,10 @@ export default function DepartmentDetail() {
     };
     load();
   }, [id]);
+
+  const getCellTasks = (rowId, colKey) => {
+    return tasks.filter((t) => t.row_id === rowId && t.column_key === colKey);
+  };
 
   if (loading) return <div className="loading-panel">Загрузка...</div>;
   if (error) return <div className="form-error">{error}</div>;
@@ -52,10 +62,7 @@ export default function DepartmentDetail() {
             <ArrowLeft size={18} />
           </button>
           <div>
-            <h1 style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <Building2 size={24} />
-              {department?.name}
-            </h1>
+            <h1>{department?.name}</h1>
             <p className="page-subtitle">
               {department?.head_name && `Начальник: ${department.head_name}`}
             </p>
@@ -65,8 +72,7 @@ export default function DepartmentDetail() {
 
       {rows.length === 0 ? (
         <div className="card empty-state">
-          <Building2 size={48} color="var(--text-secondary)" style={{ marginBottom: "1rem" }} />
-          <p>У этого отдела пока нет задач в досках.</p>
+          <p>У этого отдела пока нет записей в досках.</p>
         </div>
       ) : (
         <div className="sqdcp-table-wrap">
@@ -91,11 +97,32 @@ export default function DepartmentDetail() {
                     </button>
                   </td>
                   <td className="dept-detail-date">{row.board_date || "—"}</td>
-                  {Object.keys(SQDCP_LABELS).map((key) => (
-                    <td key={key} className="sqdcp-edit-cell" style={{ textAlign: "center" }}>
-                      {row[key] || "—"}
-                    </td>
-                  ))}
+                  {Object.keys(SQDCP_LABELS).map((key) => {
+                    const cellTasks = getCellTasks(row.id, key);
+                    const visibleTasks = cellTasks.slice(0, 3);
+                    const remaining = cellTasks.length - visibleTasks.length;
+                    return (
+                      <td key={key} className="sqdcp-edit-cell">
+                        {cellTasks.length > 0 && (
+                          <div className="cell-tasks">
+                            {visibleTasks.map((t) => {
+                              const Icon = STATUS_ICONS[t.status] || Circle;
+                              return (
+                                <div key={t.id} className="cell-task-item" title={t.title}>
+                                  <Icon size={10} color={STATUS_COLORS[t.status]} />
+                                  <span>{t.title}</span>
+                                </div>
+                              );
+                            })}
+                            {remaining > 0 && (
+                              <div className="cell-task-more">+{remaining}</div>
+                            )}
+                          </div>
+                        )}
+                        {cellTasks.length === 0 && <span style={{ color: "var(--text-secondary)", fontSize: "0.75rem" }}>—</span>}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>

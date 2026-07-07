@@ -58,6 +58,7 @@ export const api = {
   deleteAllDepartments: () => request("/api/departments/all", { method: "DELETE" }),
   getBoardRowsByDepartment: (deptId) => request(`/api/boards/by-department/${deptId}`),
   getAllRows: () => request("/api/boards/rows"),
+  getTasksByDepartment: (deptId) => request(`/api/boards/tasks/by-department/${deptId}`),
 
   getTasks: (boardId) => request(`/api/boards/${boardId}/tasks`),
   createTask: (boardId, data) => request(`/api/boards/${boardId}/tasks`, { method: "POST", body: JSON.stringify(data) }),

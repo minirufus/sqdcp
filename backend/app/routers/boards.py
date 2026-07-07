@@ -5,6 +5,7 @@ from app import db
 from app.models.board import Board
 from app.models.sqdcp_row import SqdcpRow
 from app.models.department import Department
+from app.models.sqdcp_task import SqdcpTask
 
 boards_bp = Blueprint("boards", __name__, url_prefix="/api/boards")
 
@@ -119,6 +120,24 @@ def list_rows_by_department(department_id):
             "people": row.people or "",
         })
     return jsonify(result)
+
+
+@boards_bp.route("/tasks/by-department/<int:department_id>", methods=["GET"])
+@jwt_required()
+def list_tasks_by_department(department_id):
+    tasks = SqdcpTask.query.join(SqdcpRow, SqdcpTask.row_id == SqdcpRow.id).filter(SqdcpRow.department_id == department_id).all()
+    return jsonify([{
+        "id": t.id,
+        "board_id": t.board_id,
+        "row_id": t.row_id,
+        "column_key": t.column_key,
+        "title": t.title,
+        "description": t.description,
+        "status": t.status,
+        "assignee": t.assignee,
+        "created_at": t.created_at.isoformat() if t.created_at else None,
+        "updated_at": t.updated_at.isoformat() if t.updated_at else None,
+    } for t in tasks])
 
 
 @boards_bp.route("", methods=["POST"])
