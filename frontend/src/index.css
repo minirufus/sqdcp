@@ -512,8 +512,7 @@ td { font-size: 0.9rem; }
   text-transform: none;
   font-size: 1.1rem;
   letter-spacing: 0;
-  height: 112px;
-  padding: 1.25rem 0.9rem;
+  padding: 1rem 0.9rem;
   text-align: center;
 }
 
@@ -523,10 +522,11 @@ td { font-size: 0.9rem; }
 }
 
 .sqdcp-table th small {
-  margin-top: 0.35rem;
-  color: rgba(255,255,255,0.85);
-  font-size: 0.85rem;
-  font-weight: 500;
+  margin-top: 0.25rem;
+  color: #fff;
+  opacity: 0.75;
+  font-size: 0.8rem;
+  font-weight: 400;
 }
 
 .sqdcp-table th span {
@@ -557,10 +557,6 @@ td { font-size: 0.9rem; }
 .sqdcp-header-cost {
   background: #ca8a04 !important;
   color: #fff;
-}
-
-.sqdcp-header-cost small {
-  color: rgba(255,255,255,0.85) !important;
 }
 
 .sqdcp-header-people {
