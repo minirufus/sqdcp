@@ -720,6 +720,14 @@ td { font-size: 0.9rem; }
   font-size: 0.85rem;
   text-align: left;
   width: 100%;
+  min-width: 0;
+}
+
+.add-dept-item > span:not(.dept-item-head) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .add-dept-item:hover {
