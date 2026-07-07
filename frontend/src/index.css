@@ -17,6 +17,7 @@
   --row-hover: rgba(255,255,255,0.02);
   --calendar-day-bg: var(--bg-primary);
   --color-scheme: dark;
+  --sqdcp-desc: rgba(255,255,255,0.75);
 }
 
 [data-theme="light"] {
@@ -38,6 +39,7 @@
   --row-hover: rgba(0,0,0,0.02);
   --calendar-day-bg: #ffffff;
   --color-scheme: light;
+  --sqdcp-desc: rgba(255,255,255,0.5);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -524,8 +526,7 @@ td { font-size: 0.9rem; }
 
 .sqdcp-table th small {
   margin-top: 0.2rem;
-  color: #fff;
-  opacity: 0.75;
+  color: var(--sqdcp-desc);
   font-size: 0.75rem;
   font-weight: 400;
 }
