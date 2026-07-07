@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import { ArrowLeft, Circle, CheckCircle2, AlertCircle } from "lucide-react";
+import { ArrowLeft, Circle, CheckCircle2, AlertCircle, ExternalLink } from "lucide-react";
 
 const SQDCP_LABELS = {
   safety: "Безопасность",
@@ -11,6 +11,7 @@ const SQDCP_LABELS = {
   people: "Персонал",
 };
 
+const STATUS_LABELS = { todo: "К выполнению", in_progress: "В работе", done: "Готово" };
 const STATUS_ICONS = { todo: Circle, in_progress: AlertCircle, done: CheckCircle2 };
 const STATUS_COLORS = { todo: "#6b7280", in_progress: "#f59e0b", done: "#22c55e" };
 
@@ -22,6 +23,7 @@ export default function DepartmentDetail() {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [viewingTask, setViewingTask] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -51,6 +53,18 @@ export default function DepartmentDetail() {
     return tasks.filter((t) => t.row_id === rowId && t.column_key === colKey);
   };
 
+  const getRowName = (rowId) => {
+    const row = rows.find((r) => r.id === rowId);
+    return row?.team_name || row?.board_title || "—";
+  };
+
+  const getBoardName = (boardId) => {
+    for (const row of rows) {
+      if (row.board_id === boardId) return row.board_title;
+    }
+    return "—";
+  };
+
   if (loading) return <div className="loading-panel">Загрузка...</div>;
   if (error) return <div className="form-error">{error}</div>;
 
@@ -70,12 +84,8 @@ export default function DepartmentDetail() {
         </div>
       </div>
 
-      {rows.length === 0 ? (
-        <div className="card empty-state">
-          <p>У этого отдела пока нет записей в досках.</p>
-        </div>
-      ) : (
-        <div className="sqdcp-table-wrap">
+      {rows.length > 0 ? (
+        <div className="sqdcp-table-wrap" style={{ marginBottom: "1.5rem" }}>
           <table className="sqdcp-table dept-detail-table">
             <thead>
               <tr>
@@ -94,6 +104,7 @@ export default function DepartmentDetail() {
                   <td>
                     <button className="link-btn" onClick={() => navigate(`/boards/${row.board_id}`)}>
                       {row.board_title}
+                      <ExternalLink size={12} style={{ marginLeft: 6, opacity: 0.5 }} />
                     </button>
                   </td>
                   <td className="dept-detail-date">{row.board_date || "—"}</td>
@@ -103,12 +114,12 @@ export default function DepartmentDetail() {
                     const remaining = cellTasks.length - visibleTasks.length;
                     return (
                       <td key={key} className="sqdcp-edit-cell">
-                        {cellTasks.length > 0 && (
+                        {cellTasks.length > 0 ? (
                           <div className="cell-tasks">
                             {visibleTasks.map((t) => {
                               const Icon = STATUS_ICONS[t.status] || Circle;
                               return (
-                                <div key={t.id} className="cell-task-item" title={t.title}>
+                                <div key={t.id} className="cell-task-item" onClick={() => setViewingTask(t)} title={STATUS_LABELS[t.status]}>
                                   <Icon size={10} color={STATUS_COLORS[t.status]} />
                                   <span>{t.title}</span>
                                 </div>
@@ -118,8 +129,9 @@ export default function DepartmentDetail() {
                               <div className="cell-task-more">+{remaining}</div>
                             )}
                           </div>
+                        ) : (
+                          <span style={{ color: "var(--text-secondary)", fontSize: "0.75rem" }}>—</span>
                         )}
-                        {cellTasks.length === 0 && <span style={{ color: "var(--text-secondary)", fontSize: "0.75rem" }}>—</span>}
                       </td>
                     );
                   })}
@@ -127,6 +139,75 @@ export default function DepartmentDetail() {
               ))}
             </tbody>
           </table>
+        </div>
+      ) : (
+        <div className="card empty-state" style={{ marginBottom: "1.5rem" }}>
+          <p>У этого отдела пока нет записей в досках.</p>
+        </div>
+      )}
+
+      <div className="card">
+        <div className="card-header">
+          <h2>Задачи отдела</h2>
+          <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+            Всего: {tasks.length}
+          </span>
+        </div>
+        <div className="card-body" style={{ padding: "0.75rem" }}>
+          {tasks.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "1.5rem", color: "var(--text-secondary)", fontSize: "0.85rem" }}>
+              Нет задач.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+              {tasks.map((task) => {
+                const StatusIcon = STATUS_ICONS[task.status] || Circle;
+                return (
+                  <div key={task.id} className="task-tracker-row" style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.4rem 0.6rem", background: "var(--bg-primary)", borderRadius: 6, fontSize: "0.82rem", cursor: "pointer" }} onClick={() => setViewingTask(task)}>
+                    <StatusIcon size={14} color={STATUS_COLORS[task.status]} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: task.status === "done" ? 400 : 500, textDecoration: task.status === "done" ? "line-through" : "none", color: task.status === "done" ? "var(--text-secondary)" : "inherit" }}>
+                        {task.title}
+                      </div>
+                      <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                        <span>{SQDCP_LABELS[task.column_key] || task.column_key}</span>
+                        <span>— {getRowName(task.row_id)}</span>
+                        <button className="link-btn" style={{ fontSize: "0.7rem" }} onClick={(e) => { e.stopPropagation(); navigate(`/boards/${task.board_id}`); }}>
+                          {getBoardName(task.board_id)}
+                          <ExternalLink size={10} style={{ marginLeft: 3 }} />
+                        </button>
+                        {task.assignee && <span>— {task.assignee}</span>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {viewingTask && (
+        <div className="modal-overlay" onClick={() => setViewingTask(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 500, width: "100%" }}>
+            <h2>{viewingTask.title}</h2>
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1rem", fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+              <span>Статус: <strong>{STATUS_LABELS[viewingTask.status]}</strong></span>
+              <span>|</span>
+              <span>{SQDCP_LABELS[viewingTask.column_key] || viewingTask.column_key}</span>
+              {viewingTask.row_id && <><span>|</span><span>{getRowName(viewingTask.row_id)}</span></>}
+              {viewingTask.assignee && <><span>|</span><span>Исполнитель: {viewingTask.assignee}</span></>}
+            </div>
+            <div style={{ fontSize: "0.9rem", lineHeight: 1.5, color: "var(--text-primary)", whiteSpace: "pre-wrap", marginBottom: "1rem", padding: "0.75rem", background: "var(--bg-primary)", borderRadius: 8, border: "1px solid var(--border)", minHeight: "80px" }}>
+              {viewingTask.description || "Нет описания."}
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-ghost" onClick={() => setViewingTask(null)}>Закрыть</button>
+              <button className="btn btn-primary" onClick={() => { setViewingTask(null); navigate(`/boards/${viewingTask.board_id}`); }}>
+                Открыть в доске
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
