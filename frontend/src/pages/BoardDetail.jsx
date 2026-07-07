@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import { ArrowLeft, ArrowDown, ArrowUp, Building2, CalendarDays, Plus, Save, Trash2, CheckCircle2, Circle, AlertCircle, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowLeft, GripVertical, Building2, CalendarDays, Plus, Save, Trash2, CheckCircle2, Circle, AlertCircle } from "lucide-react";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 
 const DEFAULT_COLUMNS = [
@@ -56,7 +56,8 @@ export default function BoardDetail() {
   const [editingTask, setEditingTask] = useState(null);
   const [filterColumn, setFilterColumn] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
-  const [expandedRows, setExpandedRows] = useState({});
+  const [dragIndex, setDragIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -103,6 +104,42 @@ export default function BoardDetail() {
     setRows(newRows.map((row, i) => ({ ...row, position: i })));
   };
 
+  const handleDragStart = (idx) => (e) => {
+    setDragIndex(idx);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", String(idx));
+  };
+
+  const handleDragOver = (idx) => (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragIndex !== idx) {
+      setDragOverIndex(idx);
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverIndex(null);
+  };
+
+  const handleDrop = (idx) => (e) => {
+    e.preventDefault();
+    const fromIdx = Number(e.dataTransfer.getData("text/plain"));
+    if (fromIdx !== idx) {
+      const newRows = [...rows];
+      const [moved] = newRows.splice(fromIdx, 1);
+      newRows.splice(idx, 0, moved);
+      setRows(newRows.map((row, i) => ({ ...row, position: i })));
+    }
+    setDragIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDragIndex(null);
+    setDragOverIndex(null);
+  };
+
   const addDepartmentRow = (dept) => {
     if (rows.some((r) => r.department_id === dept.id)) return;
     setRows([
@@ -131,7 +168,7 @@ export default function BoardDetail() {
       setRows(normalizeRows(data.rows || []));
       setDepartments(deptsData);
       addDepartmentRow(created);
-      setDeptForm({ name: "", head_name: "", deputy_name: "" });
+      setDeptForm({ name: "", head_name: "" });
       setShowCreateDept(false);
     } catch (err) {
       setError(err.message);
@@ -168,10 +205,6 @@ export default function BoardDetail() {
     await api.deleteBoard(id);
     setShowDeleteConfirm(false);
     navigate("/boards");
-  };
-
-  const getTaskCount = (rowId, colKey) => {
-    return tasks.filter((t) => t.row_id === rowId && t.column_key === colKey).length;
   };
 
   const getFilteredTasks = () => {
@@ -296,41 +329,76 @@ export default function BoardDetail() {
           </thead>
           <tbody>
             {rows.map((row, idx) => (
-              <tr key={row.id}>
+              <tr
+                key={row.id}
+                draggable
+                onDragStart={handleDragStart(idx)}
+                onDragOver={handleDragOver(idx)}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop(idx)}
+                onDragEnd={handleDragEnd}
+                className={
+                  (dragIndex === idx ? "sqdcp-row-dragging" : "") +
+                  (dragOverIndex === idx ? " sqdcp-row-drag-over" : "")
+                }
+              >
                 <td className="team-cell">
-                  {row.department_id ? (
-                    <div className="team-dept-name">
-                      <Building2 size={16} style={{ verticalAlign: "middle", marginRight: 6, opacity: 0.6 }} />
-                      <div>
-                        <div>{row.team_name}</div>
-                        {row.head_name && <div style={{ fontSize: "0.72rem", color: "var(--text-secondary)", marginTop: 2 }}>{row.head_name}</div>}
+                  <div className="team-cell-inner">
+                    <span className="drag-handle" title="Перетащить для сортировки">
+                      <GripVertical size={14} />
+                    </span>
+                    {row.department_id ? (
+                      <div className="team-dept-name">
+                        <Building2 size={16} style={{ verticalAlign: "middle", marginRight: 6, opacity: 0.6 }} />
+                        <div>
+                          <div>{row.team_name}</div>
+                          {row.head_name && <div style={{ fontSize: "0.72rem", color: "var(--text-secondary)", marginTop: 2 }}>{row.head_name}</div>}
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <input
-                      value={row.team_name}
-                      onChange={(e) => updateCell(idx, "team_name", e.target.value)}
-                      aria-label={`Название строки ${idx + 1}`}
-                    />
-                  )}
+                    ) : (
+                      <input
+                        value={row.team_name}
+                        onChange={(e) => updateCell(idx, "team_name", e.target.value)}
+                        aria-label={`Название строки ${idx + 1}`}
+                      />
+                    )}
+                  </div>
                 </td>
                 {columns.map((column) => {
-                  const count = getTaskCount(row.id, column.key);
+                  const cellTasks = tasks.filter((t) => t.row_id === row.id && t.column_key === column.key);
+                  const visibleTasks = cellTasks.slice(0, 3);
+                  const remaining = cellTasks.length - visibleTasks.length;
                   return (
-                    <td key={column.key} className="sqdcp-edit-cell" style={{ position: "relative" }}>
+                    <td key={column.key} className="sqdcp-edit-cell">
                       <textarea
                         value={row[column.key] || ""}
                         onChange={(e) => handleCellChange(idx, column.key, e)}
                         ref={(element) => { if (element) resizeTextarea(element); }}
                         aria-label={`${column.label}, ${row.team_name}`}
                       />
+                      {visibleTasks.length > 0 && (
+                        <div className="cell-tasks">
+                          {visibleTasks.map((t) => {
+                            const Icon = STATUS_ICONS[t.status] || Circle;
+                            return (
+                              <div key={t.id} className="cell-task-item" onClick={() => openEditTask(t)} title={STATUS_LABELS[t.status]}>
+                                <Icon size={10} color={STATUS_COLORS[t.status]} />
+                                <span>{t.title}</span>
+                              </div>
+                            );
+                          })}
+                          {remaining > 0 && (
+                            <div className="cell-task-more">+{remaining}</div>
+                          )}
+                        </div>
+                      )}
                       <button
                         className="task-badge"
                         onClick={() => openCreateTask(row.id, column.key)}
                         title="Добавить задачу"
                       >
                         <Plus size={10} />
-                        {count > 0 && <span className="task-count">{count}</span>}
+                        {cellTasks.length > 0 && <span className="task-count">{cellTasks.length}</span>}
                       </button>
                     </td>
                   );
@@ -338,10 +406,10 @@ export default function BoardDetail() {
                 <td className="row-action-cell">
                   <div className="row-actions">
                     <button className="btn btn-ghost btn-sm" onClick={() => moveRow(idx, -1)} disabled={idx === 0}>
-                      <ArrowUp size={14} />
+                      <ArrowLeft size={14} style={{ transform: "rotate(90deg)" }} />
                     </button>
                     <button className="btn btn-ghost btn-sm" onClick={() => moveRow(idx, 1)} disabled={idx === rows.length - 1}>
-                      <ArrowDown size={14} />
+                      <ArrowLeft size={14} style={{ transform: "rotate(-90deg)" }} />
                     </button>
                     <button className="btn btn-ghost btn-sm" onClick={() => deleteRow(idx)} disabled={rows.length <= 1}>
                       <Trash2 size={14} />

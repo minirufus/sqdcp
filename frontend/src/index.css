@@ -1133,3 +1133,84 @@ td { font-size: 0.9rem; }
   background: var(--bg-hover);
   color: var(--text-primary);
 }
+
+/* Drag and drop */
+.sqdcp-row-dragging {
+  opacity: 0.4;
+}
+
+.sqdcp-row-drag-over td {
+  border-bottom: 2px solid var(--accent) !important;
+}
+
+.drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  color: var(--text-secondary);
+  opacity: 0.3;
+  padding: 2px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+
+.drag-handle:hover {
+  opacity: 0.8;
+  background: var(--bg-hover);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.team-cell-inner {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Cell tasks */
+.sqdcp-edit-cell {
+  position: relative;
+  vertical-align: top;
+}
+
+.sqdcp-edit-cell textarea {
+  min-height: 48px;
+}
+
+.cell-tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 0.15rem;
+  margin-top: 4px;
+}
+
+.cell-task-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  padding: 2px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cell-task-item:hover {
+  background: var(--accent-light);
+}
+
+.cell-task-more {
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  padding: 1px 5px;
+  text-align: center;
+}
