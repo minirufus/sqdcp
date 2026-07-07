@@ -376,7 +376,7 @@ export default function BoardDetail() {
                         ref={(element) => { if (element) resizeTextarea(element); }}
                         aria-label={`${column.label}, ${row.team_name}`}
                       />
-                      {visibleTasks.length > 0 && (
+                      {cellTasks.length > 0 && (
                         <div className="cell-tasks">
                           {visibleTasks.map((t) => {
                             const Icon = STATUS_ICONS[t.status] || Circle;
@@ -390,16 +390,12 @@ export default function BoardDetail() {
                           {remaining > 0 && (
                             <div className="cell-task-more">+{remaining}</div>
                           )}
+                          <div className="cell-task-item cell-task-add" onClick={() => openCreateTask(row.id, column.key)} title="Добавить задачу">
+                            <Plus size={10} />
+                            <span>Добавить</span>
+                          </div>
                         </div>
                       )}
-                      <button
-                        className="task-badge"
-                        onClick={() => openCreateTask(row.id, column.key)}
-                        title="Добавить задачу"
-                      >
-                        <Plus size={10} />
-                        {cellTasks.length > 0 && <span className="task-count">{cellTasks.length}</span>}
-                      </button>
                     </td>
                   );
                 })}
