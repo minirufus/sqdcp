@@ -11,7 +11,7 @@ export default function Departments() {
   const [error, setError] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ name: "", description: "", head_name: "", deputy_name: "" });
+  const [form, setForm] = useState({ name: "", description: "", head_name: "" });
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteAllConfirm, setDeleteAllConfirm] = useState(false);
 
@@ -31,13 +31,13 @@ export default function Departments() {
 
   const openCreate = () => {
     setEditing(null);
-    setForm({ name: "", description: "", head_name: "", deputy_name: "" });
+    setForm({ name: "", description: "", head_name: "" });
     setShowModal(true);
   };
 
   const openEdit = (dept) => {
     setEditing(dept);
-    setForm({ name: dept.name, description: dept.description, head_name: dept.head_name, deputy_name: dept.deputy_name });
+    setForm({ name: dept.name, description: dept.description, head_name: dept.head_name });
     setShowModal(true);
   };
 
@@ -75,7 +75,7 @@ export default function Departments() {
       <div className="page-header">
         <div>
           <h1>Отделы</h1>
-          <p className="page-subtitle">Управление отделами, начальниками и заместителями.</p>
+          <p className="page-subtitle">Управление отделами и начальниками.</p>
         </div>
         <div style={{ display: "flex", gap: "0.5rem" }}>
           <button className="btn btn-primary" onClick={openCreate}>
@@ -107,7 +107,6 @@ export default function Departments() {
               <th>Название</th>
               <th>Описание</th>
               <th>Начальник</th>
-              <th>Зам. начальника</th>
               <th style={{ width: 100 }}></th>
             </tr>
           </thead>
@@ -122,7 +121,6 @@ export default function Departments() {
                 </td>
                 <td className="dept-desc">{dept.description}</td>
                 <td>{dept.head_name || "—"}</td>
-                <td>{dept.deputy_name || "—"}</td>
                 <td>
                   <div className="dept-actions">
                     <button className="btn btn-ghost btn-sm" onClick={() => openEdit(dept)}>
@@ -155,10 +153,6 @@ export default function Departments() {
               <div className="form-group">
                 <label>Начальник (Фамилия И.О.)</label>
                 <input value={form.head_name} onChange={(e) => setForm({ ...form, head_name: e.target.value })} placeholder="Иванов И.И." />
-              </div>
-              <div className="form-group">
-                <label>Зам. начальника (Фамилия И.О.)</label>
-                <input value={form.deputy_name} onChange={(e) => setForm({ ...form, deputy_name: e.target.value })} placeholder="Петров П.П." />
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-ghost" onClick={() => setShowModal(false)}>Отмена</button>

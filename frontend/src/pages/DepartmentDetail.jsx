@@ -4,11 +4,11 @@ import { api } from "../api/client";
 import { ArrowLeft, Building2 } from "lucide-react";
 
 const SQDCP_LABELS = {
-  safety: "Safety",
-  quality: "Quality",
-  delivery: "Delivery",
-  cost: "Cost",
-  people: "People",
+  safety: "Безопасность",
+  quality: "Качество",
+  delivery: "Сроки",
+  cost: "Стоимость",
+  people: "Персонал",
 };
 
 export default function DepartmentDetail() {
@@ -58,8 +58,6 @@ export default function DepartmentDetail() {
             </h1>
             <p className="page-subtitle">
               {department?.head_name && `Начальник: ${department.head_name}`}
-              {department?.head_name && department?.deputy_name && " | "}
-              {department?.deputy_name && `Зам. начальника: ${department.deputy_name}`}
             </p>
           </div>
         </div>
