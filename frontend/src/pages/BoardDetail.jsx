@@ -420,7 +420,6 @@ export default function BoardDetail() {
                   )}
                   {availableDepts.map((d) => (
                     <button key={d.id} className="add-dept-item" onClick={() => { addDepartmentRow(d); setShowAddDept(false); }}>
-                      <Building2 size={16} />
                       <span>{d.name}</span>
                       {d.head_name && <span className="dept-item-head">{d.head_name}</span>}
                     </button>
