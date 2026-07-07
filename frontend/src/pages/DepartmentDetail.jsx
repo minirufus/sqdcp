@@ -104,7 +104,6 @@ export default function DepartmentDetail() {
                   <td>
                     <button className="link-btn" onClick={() => navigate(`/boards/${row.board_id}`)}>
                       {row.board_title}
-                      <ExternalLink size={12} style={{ marginLeft: 6, opacity: 0.5 }} />
                     </button>
                   </td>
                   <td className="dept-detail-date">{row.board_date || "—"}</td>
