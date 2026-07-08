@@ -11,10 +11,10 @@ from app.models.task import Task
 boards_bp = Blueprint("boards", __name__, url_prefix="/api/boards")
 
 SQDCP_COLUMNS = [
-    {"key": "safety", "label": "Safety"},
-    {"key": "quality", "label": "Quality"},
-    {"key": "delivery", "label": "Delivery"},
-    {"key": "cost", "label": "Cost"},
+    {"key": "safety", "label": "Safety", "description": "безопасность"},
+    {"key": "quality", "label": "Quality", "description": "качество"},
+    {"key": "delivery", "label": "Delivery", "description": "сроки"},
+    {"key": "cost", "label": "Cost", "description": "стоимость"},
 ]
 VALID_COLUMN_KEYS = {column["key"] for column in SQDCP_COLUMNS}
 TASK_STATUSES = {"not_started", "in_progress", "done"}
@@ -104,7 +104,7 @@ def list_boards():
 def create_board():
     user_id = int(get_jwt_identity())
     data = request.get_json() or {}
-    title = (data.get("title") or "Новая SQDCP-доска").strip()
+    title = (data.get("title") or "Новая SQDC-доска").strip()
     board_date = normalize_board_date(data.get("board_date")) or date.today().isoformat()
 
     if not title:

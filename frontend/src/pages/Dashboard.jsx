@@ -30,7 +30,7 @@ export default function Dashboard() {
   const createBoard = async (e) => {
     e.preventDefault();
     setError("");
-    const board = await api.createBoard({ title: title.trim() || "Новая SQDCP-доска" });
+    const board = await api.createBoard({ title: title.trim() || "Новая SQDC-доска" });
     setShowModal(false);
     setTitle("");
     navigate(`/boards/${board.id}`);
@@ -47,8 +47,8 @@ export default function Dashboard() {
     <div>
       <div className="page-header">
         <div>
-          <h1>SQDCP-доски</h1>
-          <p className="page-subtitle">Выберите существующую SQDCP доску или создайте новую</p>
+          <h1>SQDC-доски</h1>
+          <p className="page-subtitle">Выберите существующую SQDC доску или создайте новую</p>
         </div>
         <button className="btn btn-primary" onClick={() => setShowModal(true)}>
           <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
@@ -63,7 +63,7 @@ export default function Dashboard() {
       ) : boards.length === 0 ? (
         <div className="card empty-state">
           <Columns3 size={48} color="var(--text-secondary)" style={{ marginBottom: "1rem" }} />
-          <p>Пока нет SQDCP-досок.</p>
+          <p>Пока нет SQDC-досок.</p>
         </div>
       ) : (
         <div className="boards-grid">
@@ -93,7 +93,7 @@ export default function Dashboard() {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Новая SQDCP-доска</h2>
+            <h2>Новая SQDC-доска</h2>
             <form onSubmit={createBoard}>
               <div className="form-group">
                 <label>Название</label>

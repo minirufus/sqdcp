@@ -106,7 +106,7 @@ export default function Calendar() {
     <div>
       <div className="page-header">
         <div>
-          <h1>Календарь SQDCP</h1>
+          <h1>Календарь SQDC</h1>
           <p className="page-subtitle">Выберите месяц и день, чтобы увидеть доски на выбранную дату.</p>
         </div>
         <div className="month-picker-control">

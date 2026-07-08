@@ -503,6 +503,7 @@ export default function BoardDetail() {
               {columns.map((column) => (
                 <th key={column.key} className={`sqdcp-header sqdcp-header-${column.key}`}>
                   <span>{column.label}</span>
+                  <small>{column.description}</small>
                 </th>
               ))}
               <th className="row-action-column" aria-label="Действия"></th>
@@ -646,7 +647,7 @@ export default function BoardDetail() {
         <div className="board-tasks-header">
           <div>
             <h2>Задачи</h2>
-            <p className="page-subtitle">Нераспределённые задачи можно перетащить в ячейки SQDCP-таблицы.</p>
+            <p className="page-subtitle">Нераспределённые задачи можно перетащить в ячейки SQDC-таблицы.</p>
           </div>
           <button className="btn btn-primary" onClick={() => setShowTaskCreate(true)}>
             <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />

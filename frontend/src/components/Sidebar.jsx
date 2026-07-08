@@ -15,7 +15,7 @@ export default function Sidebar({ user, theme, onToggleTheme, onLogout }) {
     <aside className="sidebar">
       <div className="sidebar-logo">
         <Columns3 size={20} style={{ verticalAlign: "middle", marginRight: 8 }} />
-        SQDCP Tracker
+        SQDC Tracker
       </div>
       <div className="sidebar-user">
         <strong>{user.username}</strong>
