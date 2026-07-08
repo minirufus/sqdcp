@@ -1,3 +1,4 @@
+import json
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 from app import db
@@ -50,6 +51,8 @@ def serialize_department(department, include_participation=False):
                 "assignees": task.assignees or "",
                 "column_key": task.column_key or "",
                 "status": task.status or "not_started",
+                "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+                "depends_on": json.loads(task.depends_on) if task.depends_on else [],
             })
         data["assigned_tasks"] = assigned_tasks
     return data
