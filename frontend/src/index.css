@@ -1323,6 +1323,103 @@ td { font-size: 0.9rem; }
   text-align: center;
 }
 
+/* Mini calendar (Kanban) */
+.mini-calendar {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.65rem;
+  width: 260px;
+}
+
+.mini-calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  gap: 0.25rem;
+}
+
+.mini-calendar-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.mini-calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.mini-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.mini-calendar-day {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.mini-calendar-day:hover {
+  background: var(--bg-hover);
+  border-color: var(--border);
+}
+
+.mini-calendar-day.selected {
+  background: var(--accent);
+  color: white;
+  font-weight: 700;
+}
+
+.mini-calendar-day.has-tasks:not(.selected) {
+  font-weight: 700;
+  border-color: var(--accent);
+}
+
+.mini-calendar-day-number {
+  line-height: 1;
+}
+
+.mini-calendar-task-count {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: white;
+  border-radius: 999px;
+  font-size: 0.55rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.mini-calendar-day.empty {
+  visibility: hidden;
+}
+
 @media (max-width: 900px) {
   .page-header {
     align-items: flex-start;

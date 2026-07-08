@@ -1,7 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+
+const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+const MONTHS = [
+  "январь", "февраль", "март", "апрель", "май", "июнь",
+  "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь",
+];
+
+function pad(value) {
+  return String(value).padStart(2, "0");
+}
+
+function dateKey(year, monthIndex, day) {
+  return `${year}-${pad(monthIndex + 1)}-${pad(day)}`;
+}
 
 const TASK_STATUSES = [
   { value: "not_started", label: "не начата", columnLabel: "Не начатые" },
@@ -36,6 +50,8 @@ export default function Canban() {
     status: "not_started",
   });
   const [kanbanDate, setKanbanDate] = useState(todayKey);
+  const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
+  const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
   const [draggedTaskId, setDraggedTaskId] = useState(null);
   const [dropTargetStatus, setDropTargetStatus] = useState("");
   const [loadingDepartments, setLoadingDepartments] = useState(true);
@@ -51,6 +67,35 @@ export default function Canban() {
       return task.completed_at.slice(0, 10) === kanbanDate;
     });
   }, [tasks, kanbanDate]);
+  const completedDates = useMemo(() => {
+    const counts = {};
+    tasks.forEach((task) => {
+      if (task.status === "done" && task.completed_at) {
+        const key = task.completed_at.slice(0, 10);
+        counts[key] = (counts[key] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [tasks]);
+
+  const calendarDays = useMemo(() => {
+    const firstDay = new Date(calendarYear, calendarMonth, 1);
+    const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+    const startOffset = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+    const days = [];
+
+    for (let i = 0; i < startOffset; i += 1) {
+      days.push(null);
+    }
+
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const key = dateKey(calendarYear, calendarMonth, day);
+      days.push({ day, key, count: completedDates[key] || 0 });
+    }
+
+    return days;
+  }, [completedDates, calendarMonth, calendarYear]);
+
   const tasksByStatus = useMemo(() => {
     const grouped = new Map(TASK_STATUSES.map((status) => [status.value, []]));
     filteredTasks.forEach((task) => {
@@ -209,17 +254,39 @@ export default function Canban() {
         </div>
         <div className="form-group" style={{ marginBottom: 0 }}>
           <label>Дата выполнения</label>
-          <label className="date-picker-control" style={{ cursor: "pointer" }}>
-            <CalendarDays size={18} />
-            <input
-              type="date"
-              value={kanbanDate}
-              readOnly
-              onClick={(e) => e.target.showPicker()}
-              onChange={(e) => setKanbanDate(e.target.value)}
-              style={{ cursor: "pointer" }}
-            />
-          </label>
+          <div className="mini-calendar">
+            <div className="mini-calendar-header">
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => {
+                if (calendarMonth === 0) { setCalendarMonth(11); setCalendarYear((y) => y - 1); }
+                else { setCalendarMonth((m) => m - 1); }
+              }}><ChevronLeft size={14} /></button>
+              <span className="mini-calendar-title">{MONTHS[calendarMonth]} {calendarYear}</span>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => {
+                if (calendarMonth === 11) { setCalendarMonth(0); setCalendarYear((y) => y + 1); }
+                else { setCalendarMonth((m) => m + 1); }
+              }}><ChevronRight size={14} /></button>
+            </div>
+            <div className="mini-calendar-weekdays">
+              {WEEKDAYS.map((wd) => <span key={wd}>{wd}</span>)}
+            </div>
+            <div className="mini-calendar-grid">
+              {calendarDays.map((day, idx) =>
+                day ? (
+                  <button
+                    key={day.key}
+                    type="button"
+                    className={`mini-calendar-day${kanbanDate === day.key ? " selected" : ""}${day.count > 0 ? " has-tasks" : ""}`}
+                    onClick={() => setKanbanDate(day.key)}
+                  >
+                    <span className="mini-calendar-day-number">{day.day}</span>
+                    {day.count > 0 && <span className="mini-calendar-task-count">{day.count}</span>}
+                  </button>
+                ) : (
+                  <span key={`e-${idx}`} className="mini-calendar-day empty" />
+                )
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
