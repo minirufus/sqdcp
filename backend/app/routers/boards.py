@@ -11,11 +11,10 @@ from app.models.task import Task
 boards_bp = Blueprint("boards", __name__, url_prefix="/api/boards")
 
 SQDCP_COLUMNS = [
-    {"key": "safety", "label": "Safety", "description": "безопасность"},
-    {"key": "quality", "label": "Quality", "description": "качество"},
-    {"key": "delivery", "label": "Delivery", "description": "сроки"},
-    {"key": "cost", "label": "Cost", "description": "стоимость"},
-    {"key": "people", "label": "People", "description": "персонал"},
+    {"key": "safety", "label": "Safety"},
+    {"key": "quality", "label": "Quality"},
+    {"key": "delivery", "label": "Delivery"},
+    {"key": "cost", "label": "Cost"},
 ]
 VALID_COLUMN_KEYS = {column["key"] for column in SQDCP_COLUMNS}
 TASK_STATUSES = {"not_started", "in_progress", "done"}

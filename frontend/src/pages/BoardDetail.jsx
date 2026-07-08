@@ -503,7 +503,6 @@ export default function BoardDetail() {
               {columns.map((column) => (
                 <th key={column.key} className={`sqdcp-header sqdcp-header-${column.key}`}>
                   <span>{column.label}</span>
-                  <small>{column.description}</small>
                 </th>
               ))}
               <th className="row-action-column" aria-label="Действия"></th>
