@@ -102,7 +102,6 @@ export default function BoardDetail() {
   const [draggedTaskId, setDraggedTaskId] = useState(null);
   const [taskDropTarget, setTaskDropTarget] = useState("");
   const [isUnassignedTaskDropTarget, setIsUnassignedTaskDropTarget] = useState(false);
-  const [kanbanDate, setKanbanDate] = useState(todayKey);
   const bypassUnsavedPromptRef = useRef(false);
 
   const currentSnapshot = useMemo(() => (
@@ -117,21 +116,6 @@ export default function BoardDetail() {
   const unassignedTasks = useMemo(() => (
     tasks.filter((task) => !task.row_id || !task.column_key || !visibleColumnKeys.has(task.column_key))
   ), [tasks, visibleColumnKeys]);
-  const tasksByKanbanDate = useMemo(() => {
-    return tasks.filter((task) => {
-      if (task.status !== "done") return true;
-      if (!task.completed_at) return false;
-      return task.completed_at.slice(0, 10) === kanbanDate;
-    });
-  }, [tasks, kanbanDate]);
-  const kanbanGrouped = useMemo(() => {
-    const groups = { not_started: [], in_progress: [], done: [] };
-    tasksByKanbanDate.forEach((task) => {
-      const key = task.status === "done" ? "done" : task.status === "in_progress" ? "in_progress" : "not_started";
-      groups[key].push(task);
-    });
-    return groups;
-  }, [tasksByKanbanDate]);
   const tasksByCell = useMemo(() => {
     const result = new Map();
     tasks.forEach((task) => {
@@ -646,18 +630,24 @@ export default function BoardDetail() {
         </button>
       </div>
 
-      <section className="board-tasks-section">
+      <section
+        className={`board-tasks-section${isUnassignedTaskDropTarget ? " task-drop-target" : ""}`}
+        onDragOver={(event) => {
+          if (draggedTaskId === null) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+          setIsUnassignedTaskDropTarget(true);
+        }}
+        onDragLeave={(event) => {
+          if (event.currentTarget.contains(event.relatedTarget)) return;
+          setIsUnassignedTaskDropTarget(false);
+        }}
+        onDrop={unassignTask}
+      >
         <div className="board-tasks-header">
-          <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
-            <h2>Канбан</h2>
-            <label className="date-picker-control" style={{ minHeight: "36px", padding: "0.35rem 0.7rem" }}>
-              <input
-                type="date"
-                value={kanbanDate}
-                onChange={(e) => setKanbanDate(e.target.value)}
-                style={{ fontSize: "0.85rem" }}
-              />
-            </label>
+          <div>
+            <h2>Задачи</h2>
+            <p className="page-subtitle">Нераспределённые задачи можно перетащить в ячейки SQDCP-таблицы.</p>
           </div>
           <button className="btn btn-primary" onClick={() => setShowTaskCreate(true)}>
             <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
@@ -665,79 +655,26 @@ export default function BoardDetail() {
           </button>
         </div>
 
-        <div className="kanban-columns">
-          {TASK_STATUSES.map((status) => {
-            const statusTasks = kanbanGrouped[status.value] || [];
-            const statusColor = status.value === "done" ? "var(--success)" : status.value === "in_progress" ? "var(--warning)" : "var(--danger)";
-            return (
-              <div key={status.value} className="kanban-column">
-                <div className="kanban-column-header" style={{ color: statusColor }}>
-                  <span>{status.label}</span>
-                  <span className="kanban-badge">{statusTasks.length}</span>
-                </div>
-                <div className="kanban-cards">
-                  {statusTasks.map((task) => (
-                    <button
-                      key={task.id}
-                      type="button"
-                      className={`kanban-card ${taskStatusClass(task)}`}
-                      draggable
-                      onDragStart={(event) => handleTaskDragStart(task, event)}
-                      onDragEnd={handleTaskDragEnd}
-                      onClick={() => openTaskDetail(task)}
-                    >
-                      <strong style={{ fontSize: "0.85rem", display: "block" }}>{task.name}</strong>
-                      {task.assignees && <span style={{ fontSize: "0.75rem", color: "var(--text-secondary)", display: "block", marginTop: "0.2rem" }}>{task.assignees}</span>}
-                      {task.completed_at && status.value === "done" && (
-                        <span style={{ fontSize: "0.7rem", color: "var(--text-secondary)", display: "block", marginTop: "0.15rem" }}>
-                          {new Date(task.completed_at).toLocaleDateString("ru")}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                  {statusTasks.length === 0 && <div className="kanban-empty">Нет задач</div>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className={`kanban-unassigned ${isUnassignedTaskDropTarget ? "task-drop-target" : ""}`}
-          onDragOver={(event) => {
-            if (draggedTaskId === null) return;
-            event.preventDefault();
-            event.dataTransfer.dropEffect = "move";
-            setIsUnassignedTaskDropTarget(true);
-          }}
-          onDragLeave={(event) => {
-            if (event.currentTarget.contains(event.relatedTarget)) return;
-            setIsUnassignedTaskDropTarget(false);
-          }}
-          onDrop={unassignTask}
-        >
-          <div className="kanban-unassigned-header">Нераспределённые ({unassignedTasks.length})</div>
-          <div className="task-list" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))" }}>
-            {unassignedTasks.length === 0 ? (
-              <div style={{ color: "var(--text-secondary)", fontSize: "0.8rem" }}>Нет нераспределённых задач</div>
-            ) : (
-              unassignedTasks.map((task) => (
-                <button
-                  key={task.id}
-                  type="button"
-                  className={`task-card ${taskStatusClass(task)}`}
-                  draggable
-                  onDragStart={(event) => handleTaskDragStart(task, event)}
-                  onDragEnd={handleTaskDragEnd}
-                  onClick={() => openTaskDetail(task)}
-                  style={{ minHeight: "auto", padding: "0.5rem", fontSize: "0.8rem" }}
-                >
-                  <strong>{task.name}</strong>
-                  {task.assignees && <span>{task.assignees}</span>}
-                </button>
-              ))
-            )}
+        {unassignedTasks.length === 0 ? (
+          <div className="task-empty-state">Нераспределённых задач нет.</div>
+        ) : (
+          <div className="task-list">
+            {unassignedTasks.map((task) => (
+              <button
+                key={task.id}
+                type="button"
+                className={`task-card ${taskStatusClass(task)}`}
+                draggable
+                onDragStart={(event) => handleTaskDragStart(task, event)}
+                onDragEnd={handleTaskDragEnd}
+                onClick={() => openTaskDetail(task)}
+              >
+                <strong>{task.name}</strong>
+                {task.assignees && <span>{task.assignees}</span>}
+              </button>
+            ))}
           </div>
-        </div>
+        )}
       </section>
 
       {showDeleteConfirm && (

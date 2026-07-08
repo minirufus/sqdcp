@@ -18,6 +18,10 @@ function taskStatusClass(task) {
   return `task-status-${normalizeTaskStatus(task.status)}`;
 }
 
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function Canban() {
   const navigate = useNavigate();
   const [departments, setDepartments] = useState([]);
@@ -30,6 +34,7 @@ export default function Canban() {
     assignees: "",
     status: "not_started",
   });
+  const [kanbanDate, setKanbanDate] = useState(todayKey);
   const [draggedTaskId, setDraggedTaskId] = useState(null);
   const [dropTargetStatus, setDropTargetStatus] = useState("");
   const [loadingDepartments, setLoadingDepartments] = useState(true);
@@ -38,13 +43,20 @@ export default function Canban() {
   const [error, setError] = useState("");
 
   const tasks = useMemo(() => department?.assigned_tasks || [], [department]);
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      if (task.status !== "done") return true;
+      if (!task.completed_at) return false;
+      return task.completed_at.slice(0, 10) === kanbanDate;
+    });
+  }, [tasks, kanbanDate]);
   const tasksByStatus = useMemo(() => {
     const grouped = new Map(TASK_STATUSES.map((status) => [status.value, []]));
-    tasks.forEach((task) => {
+    filteredTasks.forEach((task) => {
       grouped.get(normalizeTaskStatus(task.status)).push(task);
     });
     return grouped;
-  }, [tasks]);
+  }, [filteredTasks]);
 
   useEffect(() => {
     const loadDepartments = async () => {
@@ -182,8 +194,8 @@ export default function Canban() {
 
       {error && <div className="form-error">{error}</div>}
 
-      <div className="canban-toolbar">
-        <div className="form-group">
+      <div className="canban-toolbar" style={{ display: "flex", gap: "1rem", alignItems: "flex-end", flexWrap: "wrap" }}>
+        <div className="form-group" style={{ marginBottom: 0 }}>
           <label>Отдел</label>
           <select
             value={selectedDepartmentId}
@@ -193,6 +205,16 @@ export default function Canban() {
               <option key={item.id} value={item.id}>{item.name}</option>
             ))}
           </select>
+        </div>
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label>Дата выполнения</label>
+          <label className="date-picker-control">
+            <input
+              type="date"
+              value={kanbanDate}
+              onChange={(e) => setKanbanDate(e.target.value)}
+            />
+          </label>
         </div>
       </div>
 
@@ -241,6 +263,11 @@ export default function Canban() {
                       >
                         <strong>{task.name}</strong>
                         {task.assignees && <span>{task.assignees}</span>}
+                        {task.completed_at && status.value === "done" && (
+                          <span style={{ fontSize: "0.7rem", color: "var(--text-secondary)", display: "block", marginTop: "0.15rem" }}>
+                            {new Date(task.completed_at).toLocaleDateString("ru")}
+                          </span>
+                        )}
                       </button>
                     ))}
                   </div>
@@ -277,6 +304,11 @@ export default function Canban() {
                     <option key={status.value} value={status.value}>{status.label}</option>
                   ))}
                 </select>
+                {selectedTask.completed_at && (
+                  <small style={{ display: "block", marginTop: "0.35rem", color: "var(--text-secondary)", fontSize: "0.8rem" }}>
+                    Выполнена: {new Date(selectedTask.completed_at).toLocaleString("ru")}
+                  </small>
+                )}
               </div>
               <div className="form-group">
                 <label>Описание задачи</label>
