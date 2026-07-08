@@ -17,11 +17,6 @@ function App() {
   const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
 
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem("theme", theme);
-  }, [theme]);
-
-  useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
       api.getMe().then(setUser).catch(() => localStorage.removeItem("token")).finally(() => setLoading(false));
@@ -30,7 +25,14 @@ function App() {
     }
   }, []);
 
-  const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((currentTheme) => currentTheme === "dark" ? "light" : "dark");
+  };
 
   if (loading) return <div className="loading">Загрузка...</div>;
 
@@ -46,15 +48,20 @@ function App() {
   return (
     <UserContext.Provider value={user}>
       <div className="app-layout">
-        <Sidebar user={user} theme={theme} onToggleTheme={toggleTheme} onLogout={() => { localStorage.removeItem("token"); setUser(null); }} />
+        <Sidebar
+          user={user}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          onLogout={() => { localStorage.removeItem("token"); setUser(null); }}
+        />
         <main className="main-content">
           <Routes>
             <Route path="/" element={<Navigate to="/boards" />} />
             <Route path="/boards" element={<Dashboard />} />
             <Route path="/boards/:id" element={<BoardDetail />} />
+            <Route path="/calendar" element={<Calendar />} />
             <Route path="/departments" element={<Departments />} />
             <Route path="/departments/:id" element={<DepartmentDetail />} />
-            <Route path="/calendar" element={<Calendar />} />
             <Route path="*" element={<Navigate to="/boards" />} />
           </Routes>
         </main>

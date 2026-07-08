@@ -6,5 +6,5 @@ class Department(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
     description = db.Column(db.String(500), default="")
-    head_name = db.Column(db.String(200), default="")
-    deputy_name = db.Column(db.String(200), default="")
+    head = db.Column(db.String(150), default="")
+    workers = db.Column(db.Text, default="")

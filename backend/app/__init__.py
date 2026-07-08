@@ -21,23 +21,35 @@ def create_app():
     jwt.init_app(app)
 
     with app.app_context():
-        from app.models import user, department, board, sqdcp_row, sqdcp_task
+        from app.models import user, department, board, sqdcp_row, task
         db.create_all()
-        ensure_board_columns()
         ensure_department_columns()
+        ensure_board_columns()
         ensure_sqdcp_row_columns()
+        ensure_task_columns()
 
     from app.routers.auth import auth_bp
     from app.routers.boards import boards_bp
     from app.routers.departments import departments_bp
-    from app.routers.sqdcp_tasks import sqdcp_tasks_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(boards_bp)
     app.register_blueprint(departments_bp)
-    app.register_blueprint(sqdcp_tasks_bp)
 
     return app
+
+
+def ensure_department_columns():
+    inspector = inspect(db.engine)
+    if "departments" not in inspector.get_table_names():
+        return
+
+    existing_columns = {column["name"] for column in inspector.get_columns("departments")}
+    with db.engine.begin() as connection:
+        if "head" not in existing_columns:
+            connection.execute(text("ALTER TABLE departments ADD COLUMN head VARCHAR(150) DEFAULT ''"))
+        if "workers" not in existing_columns:
+            connection.execute(text("ALTER TABLE departments ADD COLUMN workers TEXT DEFAULT ''"))
 
 
 def ensure_board_columns():
@@ -49,18 +61,6 @@ def ensure_board_columns():
     with db.engine.begin() as connection:
         if "board_date" not in existing_columns:
             connection.execute(text("ALTER TABLE boards ADD COLUMN board_date TEXT DEFAULT ''"))
-
-
-def ensure_department_columns():
-    inspector = inspect(db.engine)
-    if "departments" not in inspector.get_table_names():
-        return
-    existing_columns = {column["name"] for column in inspector.get_columns("departments")}
-    with db.engine.begin() as connection:
-        if "head_name" not in existing_columns:
-            connection.execute(text("ALTER TABLE departments ADD COLUMN head_name TEXT DEFAULT ''"))
-        if "deputy_name" not in existing_columns:
-            connection.execute(text("ALTER TABLE departments ADD COLUMN deputy_name TEXT DEFAULT ''"))
 
 
 def ensure_sqdcp_row_columns():
@@ -75,4 +75,17 @@ def ensure_sqdcp_row_columns():
             if column not in existing_columns:
                 connection.execute(text(f"ALTER TABLE sqdcp_rows ADD COLUMN {column} TEXT DEFAULT ''"))
         if "department_id" not in existing_columns:
-            connection.execute(text("ALTER TABLE sqdcp_rows ADD COLUMN department_id INTEGER REFERENCES departments(id)"))
+            connection.execute(text("ALTER TABLE sqdcp_rows ADD COLUMN department_id INTEGER"))
+
+
+def ensure_task_columns():
+    inspector = inspect(db.engine)
+    if "tasks" not in inspector.get_table_names():
+        return
+
+    existing_columns = {column["name"] for column in inspector.get_columns("tasks")}
+    with db.engine.begin() as connection:
+        if "department_id" not in existing_columns:
+            connection.execute(text("ALTER TABLE tasks ADD COLUMN department_id INTEGER"))
+        if "status" not in existing_columns:
+            connection.execute(text("ALTER TABLE tasks ADD COLUMN status VARCHAR(20) DEFAULT 'not_started'"))

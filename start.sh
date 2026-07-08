@@ -20,6 +20,53 @@ cleanup() {
   fi
 }
 
+require_command() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "Missing required command: $1"
+    if [[ "$1" == "node" || "$1" == "npm" ]]; then
+      echo "Install Node.js LTS, then restart the terminal and run this script again."
+      echo "macOS options:"
+      echo "  1. Download the LTS installer from https://nodejs.org/"
+      echo "  2. Or install Homebrew first from https://brew.sh/, then run: brew install node"
+      echo "Then check: node -v && npm -v"
+    fi
+    exit 1
+  fi
+}
+
+load_nvm_if_needed() {
+  if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+    return
+  fi
+
+  export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+  if [[ -s "$NVM_DIR/nvm.sh" ]]; then
+    # shellcheck source=/dev/null
+    source "$NVM_DIR/nvm.sh"
+    if ! command -v node >/dev/null 2>&1; then
+      nvm install --lts
+    else
+      nvm use --lts >/dev/null 2>&1 || true
+    fi
+  fi
+}
+
+file_sha256() {
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{ print $1 }'
+  else
+    sha256sum "$1" | awk '{ print $1 }'
+  fi
+}
+
+files_sha256() {
+  if command -v shasum >/dev/null 2>&1; then
+    cat "$@" | shasum -a 256 | awk '{ print $1 }'
+  else
+    cat "$@" | sha256sum | awk '{ print $1 }'
+  fi
+}
+
 trap cleanup EXIT INT TERM
 
 echo "========================================"
@@ -27,100 +74,56 @@ echo "  SQDCP Tracker"
 echo "========================================"
 echo
 
+require_command "$PYTHON_BIN"
+load_nvm_if_needed
+require_command node
+require_command npm
+
 echo "[1/4] Preparing Python environment..."
 cd "$BACKEND"
 if [[ ! -d ".venv" ]]; then
   "$PYTHON_BIN" -m venv .venv
 fi
+
 source .venv/bin/activate
-python -m pip install -r requirements.txt -q
+
+REQ_HASH="$(file_sha256 requirements.txt)"
+REQ_MARKER=".venv/.requirements.sha256"
+
+if [[ "${SKIP_INSTALL:-0}" == "1" ]]; then
+  echo "  Skipped backend dependency install (SKIP_INSTALL=1)"
+elif [[ ! -f "$REQ_MARKER" ]] || [[ "$(cat "$REQ_MARKER")" != "$REQ_HASH" ]]; then
+  echo "  Installing backend dependencies..."
+  python -m pip install --disable-pip-version-check --prefer-binary -r requirements.txt
+  printf "%s\n" "$REQ_HASH" > "$REQ_MARKER"
+else
+  echo "  Backend dependencies are already installed"
+fi
 echo "  OK"
 
 echo "[2/4] Starting backend (Flask)..."
 python run.py &
 BACKEND_PID=$!
-# wait for backend to be ready
-for _i in {1..15}; do
-  if curl -s http://localhost:8000/api/boards >/dev/null 2>&1; then
-    break
-  fi
-  sleep 0.5
-done
 echo "  OK - http://localhost:8000"
-
-ensure_node() {
-  if command -v node &>/dev/null && command -v npm &>/dev/null; then
-    NODE_VER="$(node --version | cut -d'.' -f1 | tr -d 'v')"
-    if [[ "$NODE_VER" -lt 18 ]]; then
-      echo "  WARNING: Node.js $(node --version) слишком старый. Нужен >= 18."
-    fi
-    echo "  Found: node $(node --version)"
-    return 0
-  fi
-
-  # --- nvm: find latest installed version ---
-  NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
-  if [[ -d "$NVM_DIR/versions/node" ]]; then
-    for _nv in "$NVM_DIR/versions/node"/*/bin; do
-      if [[ -x "$_nv/node" ]] && [[ -x "$_nv/npm" ]]; then
-        PATH="$_nv:$PATH"
-        export PATH
-        echo "  Found: node $("$_nv/node" --version) (nvm)"
-        return 0
-      fi
-    done
-  fi
-
-  # --- fnm ---
-  for _fd in \
-    "$HOME/.local/share/fnm/aliases/default/bin" \
-    "$HOME/.fnm/aliases/default/bin" \
-    "$HOME/.local/share/fnm/node-versions"/*/installation/bin \
-    "$HOME/.fnm/node-versions"/*/installation/bin; do
-    if [[ -x "$_fd/node" ]] && [[ -x "$_fd/npm" ]]; then
-      PATH="$_fd:$PATH"
-      export PATH
-      echo "  Found: node $("$_fd/node" --version) (fnm)"
-      return 0
-    fi
-  done
-
-  # --- brew / system ---
-  for _bd in /opt/homebrew/bin /usr/local/bin /opt/homebrew/opt/node/bin; do
-    if [[ -x "$_bd/node" ]] && [[ -x "$_bd/npm" ]]; then
-      PATH="$_bd:$PATH"
-      export PATH
-      echo "  Found: node $("$_bd/node" --version) (brew)"
-      return 0
-    fi
-  done
-
-  # --- nvm auto-install ---
-  if [[ -s "$NVM_DIR/nvm.sh" ]]; then
-    echo "  Installing Node.js via nvm..."
-    # shellcheck source=/dev/null
-    source "$NVM_DIR/nvm.sh"
-    nvm install --lts --latest-npm || true
-    for _nv in "$NVM_DIR/versions/node"/*/bin; do
-      if [[ -x "$_nv/node" ]] && [[ -x "$_nv/npm" ]]; then
-        PATH="$_nv:$PATH"
-        export PATH
-        echo "  Installed: node $("$_nv/node" --version)"
-        return 0
-      fi
-    done
-  fi
-
-  echo "  ERROR: Node.js не найден."
-  echo "  Установите вручную: https://nodejs.org"
-  exit 1
-}
 
 echo "[3/4] Checking frontend deps..."
 cd "$FRONTEND"
-ensure_node
-if [[ ! -d "node_modules" ]]; then
-  npm install --no-fund --no-audit || npm install --no-fund --no-audit
+
+FRONTEND_HASH_FILES=("package.json")
+if [[ -f "package-lock.json" ]]; then
+  FRONTEND_HASH_FILES+=("package-lock.json")
+fi
+FRONTEND_HASH="$(files_sha256 "${FRONTEND_HASH_FILES[@]}")"
+FRONTEND_MARKER="node_modules/.frontend-deps.sha256"
+
+if [[ "${SKIP_INSTALL:-0}" == "1" ]]; then
+  echo "  Skipped frontend dependency install (SKIP_INSTALL=1)"
+elif [[ ! -d "node_modules" ]] || [[ ! -f "$FRONTEND_MARKER" ]] || [[ "$(cat "$FRONTEND_MARKER")" != "$FRONTEND_HASH" ]]; then
+  echo "  Installing frontend dependencies..."
+  npm install --no-audit --no-fund --prefer-offline
+  printf "%s\n" "$FRONTEND_HASH" > "$FRONTEND_MARKER"
+else
+  echo "  Frontend dependencies are already installed"
 fi
 echo "  OK"
 

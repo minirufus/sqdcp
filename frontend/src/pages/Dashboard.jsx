@@ -17,8 +17,7 @@ export default function Dashboard() {
     setLoading(true);
     setError("");
     try {
-      const boardsData = await api.getBoards();
-      setBoards(boardsData);
+      setBoards(await api.getBoards());
     } catch (err) {
       setError(err.message);
     } finally {
@@ -31,17 +30,10 @@ export default function Dashboard() {
   const createBoard = async (e) => {
     e.preventDefault();
     setError("");
-    const board = await api.createBoard({
-      title: title.trim() || "Новая SQDCP-доска",
-    });
+    const board = await api.createBoard({ title: title.trim() || "Новая SQDCP-доска" });
     setShowModal(false);
     setTitle("");
     navigate(`/boards/${board.id}`);
-  };
-
-  const openCreateModal = () => {
-    setTitle("");
-    setShowModal(true);
   };
 
   const deleteBoard = async () => {
@@ -56,9 +48,9 @@ export default function Dashboard() {
       <div className="page-header">
         <div>
           <h1>SQDCP-доски</h1>
-          <p className="page-subtitle">Выберите доску или создайте новую таблицу команд.</p>
+          <p className="page-subtitle">Выберите существующую SQDCP доску или создайте новую</p>
         </div>
-        <button className="btn btn-primary" onClick={openCreateModal}>
+        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
           <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
           Создать доску
         </button>

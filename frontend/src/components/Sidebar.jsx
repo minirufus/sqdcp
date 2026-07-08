@@ -8,7 +8,9 @@ const ROLE_NAMES = {
   viewer: "Наблюдатель",
 };
 
-export default function Sidebar({ user, onLogout, theme, onToggleTheme }) {
+export default function Sidebar({ user, theme, onToggleTheme, onLogout }) {
+  const isLightTheme = theme === "light";
+
   return (
     <aside className="sidebar">
       <div className="sidebar-logo">
@@ -24,21 +26,23 @@ export default function Sidebar({ user, onLogout, theme, onToggleTheme }) {
         <LayoutDashboard size={18} />
         Доски
       </NavLink>
-      <NavLink to="/departments" className={({ isActive }) => `sidebar-link${isActive ? " active" : ""}`}>
-        <Building2 size={18} />
-        Отделы
-      </NavLink>
       <NavLink to="/calendar" className={({ isActive }) => `sidebar-link${isActive ? " active" : ""}`}>
         <CalendarDays size={18} />
         Календарь
       </NavLink>
+      <NavLink to="/departments" className={({ isActive }) => `sidebar-link${isActive ? " active" : ""}`}>
+        <Building2 size={18} />
+        Отделы
+      </NavLink>
+      <div className="sidebar-bottom-actions">
+        <button className="sidebar-theme-toggle" onClick={onToggleTheme}>
+          {isLightTheme ? <Moon size={18} /> : <Sun size={18} />}
+          {isLightTheme ? "Тёмная тема" : "Светлая тема"}
+        </button>
+      </div>
       <button className="sidebar-logout" onClick={onLogout}>
         <LogOut size={18} />
         Выйти
-      </button>
-      <button className="sidebar-theme" onClick={onToggleTheme}>
-        {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-        {theme === "dark" ? "Светлая тема" : "Тёмная тема"}
       </button>
     </aside>
   );

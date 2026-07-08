@@ -1,20 +1,22 @@
-import { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useParams, useNavigate, useBlocker } from "react-router-dom";
 import { api } from "../api/client";
-import { ArrowLeft, GripVertical, CalendarDays, Plus, Save, Trash2, CheckCircle2, Circle, AlertCircle } from "lucide-react";
+import { ArrowLeft, CalendarDays, GripVertical, Plus, Save, Trash2 } from "lucide-react";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 
 const DEFAULT_COLUMNS = [
-  { key: "safety", label: "Безопасность", description: "Safety" },
-  { key: "quality", label: "Качество", description: "Quality" },
-  { key: "delivery", label: "Сроки", description: "Delivery" },
-  { key: "cost", label: "Стоимость", description: "Cost" },
-  { key: "people", label: "Персонал", description: "People" },
+  { key: "safety", label: "Safety", description: "безопасность" },
+  { key: "quality", label: "Quality", description: "качество" },
+  { key: "delivery", label: "Delivery", description: "сроки" },
+  { key: "cost", label: "Cost", description: "стоимость" },
+  { key: "people", label: "People", description: "персонал" },
 ];
-
-const STATUS_LABELS = { todo: "К выполнению", in_progress: "В работе", done: "Готово" };
-const STATUS_ICONS = { todo: Circle, in_progress: AlertCircle, done: CheckCircle2 };
-const STATUS_COLORS = { todo: "#6b7280", in_progress: "#f59e0b", done: "#22c55e" };
+const TASK_STATUSES = [
+  { value: "not_started", label: "не начата" },
+  { value: "in_progress", label: "в работе" },
+  { value: "done", label: "выполнена" },
+];
+const TASK_STATUS_VALUES = new Set(TASK_STATUSES.map((status) => status.value));
 
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
@@ -25,9 +27,52 @@ function normalizeRows(rows) {
     id: row.id || `new-${idx}`,
     department_id: row.department_id || null,
     team_name: row.team_name || `Команда ${idx + 1}`,
-    head_name: row.head_name || "",
     position: idx,
+    safety: row.safety || "",
+    quality: row.quality || "",
+    delivery: row.delivery || "",
+    cost: row.cost || "",
+    people: row.people || "",
   }));
+}
+
+function createBoardSnapshot(board, rows) {
+  return JSON.stringify({
+    title: board?.title || "",
+    board_date: board?.board_date || todayKey(),
+    rows: rows.map((row, idx) => ({
+      team_name: row.team_name || "",
+      department_id: row.department_id || null,
+      position: idx,
+      safety: row.safety || "",
+      quality: row.quality || "",
+      delivery: row.delivery || "",
+      cost: row.cost || "",
+      people: row.people || "",
+    })),
+  });
+}
+
+function createRowsPayload(rows) {
+  return rows.map((row, idx) => ({
+    id: typeof row.id === "number" ? row.id : null,
+    team_name: row.team_name,
+    department_id: row.department_id || null,
+    position: idx,
+    safety: row.safety,
+    quality: row.quality,
+    delivery: row.delivery,
+    cost: row.cost,
+    people: row.people,
+  }));
+}
+
+function normalizeTaskStatus(status) {
+  return TASK_STATUS_VALUES.has(status) ? status : "not_started";
+}
+
+function taskStatusClass(task) {
+  return `task-status-${normalizeTaskStatus(task.status)}`;
 }
 
 export default function BoardDetail() {
@@ -35,35 +80,65 @@ export default function BoardDetail() {
   const navigate = useNavigate();
   const [board, setBoard] = useState(null);
   const [rows, setRows] = useState([]);
-  const [departments, setDepartments] = useState([]);
   const [columns, setColumns] = useState(DEFAULT_COLUMNS);
+  const [departments, setDepartments] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [showTaskCreate, setShowTaskCreate] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [taskForm, setTaskForm] = useState({ name: "", description: "", assignees: "" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [showAddDept, setShowAddDept] = useState(false);
-  const [showCreateDept, setShowCreateDept] = useState(false);
-  const [deptForm, setDeptForm] = useState({ name: "", head_name: "" });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDepartmentPicker, setShowDepartmentPicker] = useState(false);
+  const [savedSnapshot, setSavedSnapshot] = useState("");
   const [error, setError] = useState("");
+  const [draggedRowIndex, setDraggedRowIndex] = useState(null);
+  const [dragOverRowIndex, setDragOverRowIndex] = useState(null);
+  const [draggedTaskId, setDraggedTaskId] = useState(null);
+  const [taskDropTarget, setTaskDropTarget] = useState("");
+  const [isUnassignedTaskDropTarget, setIsUnassignedTaskDropTarget] = useState(false);
+  const bypassUnsavedPromptRef = useRef(false);
 
-  const [tasks, setTasks] = useState([]);
-  const [showTaskModal, setShowTaskModal] = useState(false);
-  const [taskForm, setTaskForm] = useState({ title: "", description: "", status: "todo", assignee: "", row_id: null, column_key: "safety" });
-  const [editingTask, setEditingTask] = useState(null);
-  const [filterColumn, setFilterColumn] = useState("all");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [dragIndex, setDragIndex] = useState(null);
-  const [dragOverIndex, setDragOverIndex] = useState(null);
+  const currentSnapshot = useMemo(() => (
+    board ? createBoardSnapshot(board, rows) : ""
+  ), [board, rows]);
+  const departmentsById = useMemo(() => (
+    new Map(departments.map((department) => [Number(department.id), department]))
+  ), [departments]);
+  const unassignedTasks = useMemo(() => (
+    tasks.filter((task) => !task.row_id || !task.column_key)
+  ), [tasks]);
+  const tasksByCell = useMemo(() => {
+    const result = new Map();
+    tasks.forEach((task) => {
+      if (!task.row_id || !task.column_key) return;
+      const key = `${task.row_id}:${task.column_key}`;
+      result.set(key, [...(result.get(key) || []), task]);
+    });
+    return result;
+  }, [tasks]);
+  const hasUnsavedChanges = Boolean(savedSnapshot && currentSnapshot && savedSnapshot !== currentSnapshot);
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => (
+    hasUnsavedChanges
+    && !bypassUnsavedPromptRef.current
+    && currentLocation.pathname !== nextLocation.pathname
+  ));
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const [data, deptsData, tasksData] = await Promise.all([api.getBoard(id), api.getDepartments(), api.getTasks(id)]);
+      const [data, departmentList] = await Promise.all([
+        api.getBoard(id),
+        api.getDepartments(),
+      ]);
+      const normalizedRows = normalizeRows(data.rows || []);
       setBoard(data);
-      setRows(normalizeRows(data.rows || []));
+      setRows(normalizedRows);
       setColumns(data.columns || DEFAULT_COLUMNS);
-      setDepartments(deptsData);
-      setTasks(tasksData || []);
+      setDepartments(departmentList);
+      setTasks(data.tasks || []);
+      setSavedSnapshot(createBoardSnapshot(data, normalizedRows));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -72,6 +147,28 @@ export default function BoardDetail() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return undefined;
+
+    const handleBeforeUnload = (event) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  useEffect(() => {
+    if (blocker.state === "blocked" && !hasUnsavedChanges) {
+      blocker.proceed();
+    }
+  }, [blocker, hasUnsavedChanges]);
+
+  const updateTeamName = (idx, value) => {
+    setRows(rows.map((row, rowIdx) => rowIdx === idx ? { ...row, team_name: value } : row));
+  };
 
   const updateCell = (idx, key, value) => {
     setRows(rows.map((row, rowIdx) => rowIdx === idx ? { ...row, [key]: value } : row));
@@ -82,89 +179,183 @@ export default function BoardDetail() {
     element.style.height = `${element.scrollHeight}px`;
   };
 
-  const deleteRow = (idx) => {
-    setRows(rows.filter((_, rowIdx) => rowIdx !== idx).map((row, rowIdx) => ({ ...row, position: rowIdx })));
+  const handleCellChange = (idx, key, event) => {
+    resizeTextarea(event.target);
+    updateCell(idx, key, event.target.value);
   };
 
-  const moveRow = (idx, direction) => {
-    const target = idx + direction;
-    if (target < 0 || target >= rows.length) return;
-    const newRows = [...rows];
-    [newRows[idx], newRows[target]] = [newRows[target], newRows[idx]];
-    setRows(newRows.map((row, i) => ({ ...row, position: i })));
-  };
-
-  const handleDragStart = (idx) => (e) => {
-    setDragIndex(idx);
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("text/plain", String(idx));
-  };
-
-  const handleDragOver = (idx) => (e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    if (dragIndex !== idx) {
-      setDragOverIndex(idx);
-    }
-  };
-
-  const handleDragLeave = () => {
-    setDragOverIndex(null);
-  };
-
-  const handleDrop = (idx) => (e) => {
-    e.preventDefault();
-    const fromIdx = Number(e.dataTransfer.getData("text/plain"));
-    if (fromIdx !== idx) {
-      const newRows = [...rows];
-      const [moved] = newRows.splice(fromIdx, 1);
-      newRows.splice(idx, 0, moved);
-      setRows(newRows.map((row, i) => ({ ...row, position: i })));
-    }
-    setDragIndex(null);
-    setDragOverIndex(null);
-  };
-
-  const handleDragEnd = () => {
-    setDragIndex(null);
-    setDragOverIndex(null);
-  };
-
-  const addDepartmentRow = (dept) => {
-    if (rows.some((r) => r.department_id === dept.id)) return;
+  const addRow = () => {
     setRows([
       ...rows,
       {
         id: `new-${Date.now()}`,
-        department_id: dept.id,
-        team_name: dept.name,
-        head_name: dept.head_name || "",
+        team_name: `Команда ${rows.length + 1}`,
+        department_id: null,
         position: rows.length,
+        safety: "",
+        quality: "",
+        delivery: "",
+        cost: "",
+        people: "",
       },
     ]);
-    setShowAddDept(false);
   };
 
-  const createDeptInline = async (e) => {
-    e.preventDefault();
+  const addDepartmentRow = (department) => {
+    setRows([
+      ...rows,
+      {
+        id: `new-department-${department.id}-${Date.now()}`,
+        department_id: department.id,
+        team_name: department.name,
+        position: rows.length,
+        safety: "",
+        quality: "",
+        delivery: "",
+        cost: "",
+        people: "",
+      },
+    ]);
+    setShowDepartmentPicker(false);
+  };
+
+  const deleteRow = (idx) => {
+    setRows(rows.filter((_, rowIdx) => rowIdx !== idx).map((row, rowIdx) => ({ ...row, position: rowIdx })));
+  };
+
+  const moveRow = (fromIdx, toIdx) => {
+    if (fromIdx === toIdx || fromIdx < 0 || toIdx < 0) return;
+
+    setRows((currentRows) => {
+      if (fromIdx >= currentRows.length || toIdx >= currentRows.length) return currentRows;
+
+      const nextRows = [...currentRows];
+      const [movedRow] = nextRows.splice(fromIdx, 1);
+      nextRows.splice(toIdx, 0, movedRow);
+      return nextRows.map((row, rowIdx) => ({ ...row, position: rowIdx }));
+    });
+  };
+
+  const handleRowDragStart = (idx, event) => {
+    setDraggedRowIndex(idx);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", String(idx));
+  };
+
+  const handleRowDrop = (idx, event) => {
+    event.preventDefault();
+    const sourceIndex = draggedRowIndex ?? Number(event.dataTransfer.getData("text/plain"));
+    if (Number.isInteger(sourceIndex)) {
+      moveRow(sourceIndex, idx);
+    }
+    setDraggedRowIndex(null);
+    setDragOverRowIndex(null);
+  };
+
+  const handleRowDragEnd = () => {
+    setDraggedRowIndex(null);
+    setDragOverRowIndex(null);
+  };
+
+  const createTask = async (event) => {
+    event.preventDefault();
     setError("");
-    const name = deptForm.name.trim();
-    if (!name) { setError("Введите название отдела"); return; }
     try {
-      const created = await api.createDepartment(deptForm);
-      const [data, deptsData] = await Promise.all([api.getBoard(id), api.getDepartments()]);
-      setBoard(data);
-      setRows(normalizeRows(data.rows || []));
-      setDepartments(deptsData);
-      addDepartmentRow(created);
-      setDeptForm({ name: "", head_name: "" });
-      setShowCreateDept(false);
+      const task = await api.createBoardTask(id, taskForm);
+      setTasks([...tasks, task]);
+      setTaskForm({ name: "", description: "", assignees: "" });
+      setShowTaskCreate(false);
     } catch (err) {
       setError(err.message);
     }
   };
 
-  const availableDepts = departments.filter((d) => !rows.some((r) => r.department_id === d.id));
+  const deleteSelectedTask = async () => {
+    if (!selectedTask) return;
+    await api.deleteBoardTask(id, selectedTask.id);
+    setTasks(tasks.filter((task) => task.id !== selectedTask.id));
+    setSelectedTask(null);
+  };
+
+  const updateSelectedTaskStatus = async (status) => {
+    if (!selectedTask) return;
+
+    try {
+      setError("");
+      const updatedTask = await api.updateBoardTask(id, selectedTask.id, { status });
+      setSelectedTask(updatedTask);
+      setTasks((currentTasks) => currentTasks.map((task) => (
+        task.id === updatedTask.id ? updatedTask : task
+      )));
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleTaskDragStart = (task, event) => {
+    setDraggedTaskId(task.id);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", String(task.id));
+  };
+
+  const handleTaskDragEnd = () => {
+    setDraggedTaskId(null);
+    setTaskDropTarget("");
+    setIsUnassignedTaskDropTarget(false);
+  };
+
+  const assignTaskToCell = async (row, columnKey, event) => {
+    event.preventDefault();
+    if (draggedTaskId === null) return;
+
+    if (typeof row.id !== "number") {
+      setError("Сначала сохраните доску, чтобы распределить задачу в новую строку.");
+      setTaskDropTarget("");
+      setDraggedTaskId(null);
+      return;
+    }
+
+    const taskId = draggedTaskId;
+
+    try {
+      setError("");
+      setTaskDropTarget("");
+      const updatedTask = await api.updateBoardTask(id, taskId, {
+        row_id: row.id,
+        column_key: columnKey,
+      });
+      setTasks(tasks.map((task) => task.id === updatedTask.id ? updatedTask : task));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDraggedTaskId(null);
+    }
+  };
+
+  const unassignTask = async (event) => {
+    event.preventDefault();
+    const rawTaskId = event.dataTransfer.getData("text/plain");
+    const fallbackTaskId = rawTaskId ? Number(rawTaskId) : null;
+    const taskId = draggedTaskId ?? (Number.isInteger(fallbackTaskId) ? fallbackTaskId : null);
+    if (taskId === null) return;
+
+    try {
+      setError("");
+      setTaskDropTarget("");
+      setIsUnassignedTaskDropTarget(false);
+      const updatedTask = await api.updateBoardTask(id, taskId, {
+        row_id: null,
+        column_key: "",
+      });
+      setTasks((currentTasks) => currentTasks.map((task) => (
+        task.id === updatedTask.id ? updatedTask : task
+      )));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDraggedTaskId(null);
+    }
+  };
 
   const saveBoard = async () => {
     setSaving(true);
@@ -173,89 +364,45 @@ export default function BoardDetail() {
       const data = await api.updateBoard(id, {
         title: board.title,
         board_date: board.board_date || todayKey(),
-        rows: rows.map((row, idx) => ({
-          department_id: row.department_id || null,
-          team_name: row.team_name,
-          position: idx,
-          safety: "", quality: "", delivery: "", cost: "", people: "",
-        })),
+        rows: createRowsPayload(rows),
       });
+      const normalizedRows = normalizeRows(data.rows || []);
       setBoard(data);
-      setRows(normalizeRows(data.rows || []));
+      setRows(normalizedRows);
       setColumns(data.columns || DEFAULT_COLUMNS);
+      setTasks(data.tasks || tasks);
+      setSavedSnapshot(createBoardSnapshot(data, normalizedRows));
+      return true;
     } catch (err) {
       setError(err.message);
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
   const deleteCurrentBoard = async () => {
+    bypassUnsavedPromptRef.current = true;
     await api.deleteBoard(id);
     setShowDeleteConfirm(false);
     navigate("/boards");
   };
 
-  const getFilteredTasks = () => {
-    return tasks.filter((t) => {
-      if (filterColumn !== "all" && t.column_key !== filterColumn) return false;
-      if (filterStatus !== "all" && t.status !== filterStatus) return false;
-      return true;
-    });
-  };
-
-  const openCreateTask = (rowId, colKey) => {
-    setTaskForm({ title: "", description: "", status: "todo", assignee: "", row_id: rowId, column_key: colKey });
-    setEditingTask(null);
-    setShowTaskModal(true);
-  };
-
-  const openEditTask = (task) => {
-    setTaskForm({ title: task.title, description: task.description || "", status: task.status, assignee: task.assignee || "", row_id: task.row_id, column_key: task.column_key });
-    setEditingTask(task);
-    setShowTaskModal(true);
-  };
-
-  const submitTask = async (e) => {
-    e.preventDefault();
-    if (!taskForm.title.trim()) return;
-    try {
-      if (editingTask) {
-        await api.updateTask(id, editingTask.id, taskForm);
-      } else {
-        await api.createTask(id, taskForm);
-      }
-      setShowTaskModal(false);
-      const tasksData = await api.getTasks(id);
-      setTasks(tasksData || []);
-    } catch (err) {
-      setError(err.message);
+  const saveAndLeaveBoard = async () => {
+    const saved = await saveBoard();
+    if (saved && blocker.state === "blocked") {
+      blocker.proceed();
     }
   };
 
-  const deleteTask = async (taskId) => {
-    if (!window.confirm("Удалить задачу?")) return;
-    await api.deleteTask(id, taskId);
-    const tasksData = await api.getTasks(id);
-    setTasks(tasksData || []);
-  };
-
-  const updateTaskStatus = async (task, newStatus) => {
-    await api.updateTask(id, task.id, { status: newStatus });
-    const tasksData = await api.getTasks(id);
-    setTasks(tasksData || []);
-  };
-
-  const getRowName = (rowId) => {
-    if (!rowId) return "Без строки";
-    const row = rows.find((r) => String(r.id) === String(rowId));
-    return row ? row.team_name : "Строка удалена";
+  const discardAndLeaveBoard = () => {
+    if (blocker.state === "blocked") {
+      blocker.proceed();
+    }
   };
 
   if (loading) return <div className="loading-panel">Загрузка...</div>;
   if (error && !board) return <div className="form-error">{error}</div>;
-
-  const filteredTasks = getFilteredTasks();
 
   return (
     <div>
@@ -306,7 +453,7 @@ export default function BoardDetail() {
         <table className="sqdcp-table">
           <thead>
             <tr>
-              <th className="team-column">Отдел</th>
+              <th className="team-column">Команда</th>
               {columns.map((column) => (
                 <th key={column.key} className={`sqdcp-header sqdcp-header-${column.key}`}>
                   <span>{column.label}</span>
@@ -317,246 +464,170 @@ export default function BoardDetail() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, idx) => (
-              <tr
+            {rows.map((row, idx) => {
+              const linkedDepartment = row.department_id ? departmentsById.get(Number(row.department_id)) : null;
+
+              return (
+                <tr
                 key={row.id}
-                draggable
-                onDragStart={handleDragStart(idx)}
-                onDragOver={handleDragOver(idx)}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop(idx)}
-                onDragEnd={handleDragEnd}
-                className={
-                  (dragIndex === idx ? "sqdcp-row-dragging" : "") +
-                  (dragOverIndex === idx ? " sqdcp-row-drag-over" : "")
-                }
+                className={[
+                  draggedRowIndex === idx ? "row-dragging" : "",
+                  draggedRowIndex !== null && dragOverRowIndex === idx && draggedRowIndex !== idx ? "row-drop-target" : "",
+                ].filter(Boolean).join(" ")}
+                onDragOver={(event) => {
+                  if (draggedRowIndex === null) return;
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                  setDragOverRowIndex(idx);
+                }}
+                onDragLeave={() => {
+                  if (dragOverRowIndex === idx) setDragOverRowIndex(null);
+                }}
+                onDrop={(event) => {
+                  if (draggedRowIndex !== null) handleRowDrop(idx, event);
+                }}
               >
                 <td className="team-cell">
-                  <div className="team-cell-inner">
-                    <span className="drag-handle" title="Перетащить для сортировки">
-                      <GripVertical size={14} />
-                    </span>
-                    {row.department_id ? (
-                      <div className="team-dept-name">
-                        <div>
-                          <div>{row.team_name}</div>
-                          {row.head_name && <div style={{ fontSize: "0.72rem", color: "var(--text-secondary)", marginTop: 2 }}>{row.head_name}</div>}
-                        </div>
-                      </div>
-                    ) : (
-                      <input
-                        value={row.team_name}
-                        onChange={(e) => updateCell(idx, "team_name", e.target.value)}
-                        aria-label={`Название строки ${idx + 1}`}
-                      />
-                    )}
-                  </div>
+                  <textarea
+                    value={row.team_name}
+                    onChange={(e) => {
+                      resizeTextarea(e.target);
+                      updateTeamName(idx, e.target.value);
+                    }}
+                    ref={(element) => { if (element) resizeTextarea(element); }}
+                    aria-label={`Название команды ${idx + 1}`}
+                    rows={1}
+                  />
+                  {linkedDepartment?.head && (
+                    <small className="team-cell-head">{linkedDepartment.head}</small>
+                  )}
                 </td>
                 {columns.map((column) => {
-                  const cellTasks = tasks.filter((t) => t.row_id === row.id && t.column_key === column.key);
-                  const visibleTasks = cellTasks.slice(0, 3);
-                  const remaining = cellTasks.length - visibleTasks.length;
+                  const cellKey = `${row.id}:${column.key}`;
+                  const assignedTasks = tasksByCell.get(cellKey) || [];
+
                   return (
-                    <td key={column.key} className="sqdcp-edit-cell">
-                      <div className="cell-tasks">
-                        {visibleTasks.map((t) => {
-                          const Icon = STATUS_ICONS[t.status] || Circle;
-                          return (
-                            <div key={t.id} className="cell-task-item" onClick={() => openEditTask(t)} title={STATUS_LABELS[t.status]}>
-                              <Icon size={10} color={STATUS_COLORS[t.status]} />
-                              <span>{t.title}</span>
-                            </div>
-                          );
-                        })}
-                        {remaining > 0 && (
-                          <div className="cell-task-more">+{remaining}</div>
-                        )}
-                        <div className="cell-add-btn" onClick={() => openCreateTask(row.id, column.key)} title="Добавить задачу">
-                          <Plus size={14} />
+                    <td
+                      key={column.key}
+                      className={`sqdcp-edit-cell${taskDropTarget === cellKey ? " task-drop-target" : ""}`}
+                      onDragOver={(event) => {
+                        if (!draggedTaskId) return;
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = "move";
+                        setTaskDropTarget(cellKey);
+                      }}
+                      onDragLeave={() => {
+                        if (taskDropTarget === cellKey) setTaskDropTarget("");
+                      }}
+                      onDrop={(event) => assignTaskToCell(row, column.key, event)}
+                    >
+                      <textarea
+                        value={row[column.key] || ""}
+                        onChange={(e) => handleCellChange(idx, column.key, e)}
+                        ref={(element) => { if (element) resizeTextarea(element); }}
+                        aria-label={`${column.label}, ${row.team_name}`}
+                      />
+                      {assignedTasks.length > 0 && (
+                        <div className="cell-task-list">
+                          {assignedTasks.map((task) => (
+                            <button
+                              key={task.id}
+                              type="button"
+                              className={`task-pill ${taskStatusClass(task)}`}
+                              draggable
+                              onDragStart={(event) => handleTaskDragStart(task, event)}
+                              onDragEnd={handleTaskDragEnd}
+                              onClick={() => setSelectedTask(task)}
+                            >
+                              {task.name}
+                            </button>
+                          ))}
                         </div>
-                      </div>
+                      )}
                     </td>
                   );
                 })}
                 <td className="row-action-cell">
-                  <div className="row-actions">
-                    <button className="btn btn-ghost btn-sm" onClick={() => moveRow(idx, -1)} disabled={idx === 0}>
-                      <ArrowLeft size={14} style={{ transform: "rotate(90deg)" }} />
+                  <div className="row-action-buttons">
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm row-drag-handle"
+                      draggable
+                      onDragStart={(event) => handleRowDragStart(idx, event)}
+                      onDragEnd={handleRowDragEnd}
+                      aria-label={`Переместить строку ${idx + 1}`}
+                      title="Переместить строку"
+                    >
+                      <GripVertical size={14} />
                     </button>
-                    <button className="btn btn-ghost btn-sm" onClick={() => moveRow(idx, 1)} disabled={idx === rows.length - 1}>
-                      <ArrowLeft size={14} style={{ transform: "rotate(-90deg)" }} />
-                    </button>
-                    <button className="btn btn-ghost btn-sm" onClick={() => deleteRow(idx)} disabled={rows.length <= 1}>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => deleteRow(idx)} disabled={rows.length <= 1}>
                       <Trash2 size={14} />
                     </button>
                   </div>
                 </td>
-              </tr>
-            ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
-
-      <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.75rem" }}>
-        <button className="btn btn-ghost" onClick={() => { setShowAddDept(true); setShowCreateDept(false); setDeptForm({ name: "", head_name: "" }); }}>
+      <div className="board-bottom-actions">
+        <button className="btn btn-ghost" onClick={addRow}>
           <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
-          Добавить отдел
+          Добавить новую команду
+        </button>
+        <button className="btn btn-ghost" onClick={() => setShowDepartmentPicker(true)}>
+          <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
+          Добавить существующий отдел
         </button>
       </div>
 
-      {showAddDept && (
-        <div className="modal-overlay" onClick={() => setShowAddDept(false)}>
-          <div className="modal add-dept-modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Добавить отдел</h2>
-            {!showCreateDept ? (
-              <>
-                <div className="add-dept-modal-list">
-                  {availableDepts.length === 0 && departments.length === 0 && (
-                    <div className="add-dept-empty">Нет отделов. Создайте первый.</div>
-                  )}
-                  {availableDepts.length === 0 && departments.length > 0 && (
-                    <div className="add-dept-empty">Все отделы уже добавлены.</div>
-                  )}
-                  {availableDepts.map((d) => (
-                    <button key={d.id} className="add-dept-item" onClick={() => { addDepartmentRow(d); setShowAddDept(false); }}>
-                      <span>{d.name}</span>
-                      {d.head_name && <span className="dept-item-head">{d.head_name}</span>}
-                    </button>
-                  ))}
-                </div>
-                <div className="modal-actions">
-                  <button className="btn btn-ghost" onClick={() => setShowAddDept(false)}>Отмена</button>
-                  <button className="btn btn-primary" onClick={() => setShowCreateDept(true)}>Создать новый отдел</button>
-                </div>
-              </>
-            ) : (
-              <form onSubmit={createDeptInline}>
-                <div className="form-group">
-                  <label>Название</label>
-                  <input value={deptForm.name} onChange={(e) => setDeptForm({ ...deptForm, name: e.target.value })} placeholder="Название отдела" required autoFocus />
-                </div>
-                <div className="form-group">
-                  <label>Начальник (Фамилия И.О.)</label>
-                  <input value={deptForm.head_name} onChange={(e) => setDeptForm({ ...deptForm, head_name: e.target.value })} placeholder="Иванов И.И." />
-                </div>
-                <div className="modal-actions">
-                  <button type="button" className="btn btn-ghost" onClick={() => setShowCreateDept(false)}>Назад</button>
-                  <button type="submit" className="btn btn-primary">Создать</button>
-                </div>
-              </form>
-            )}
+      <section
+        className={`board-tasks-section${isUnassignedTaskDropTarget ? " task-drop-target" : ""}`}
+        onDragOver={(event) => {
+          if (draggedTaskId === null) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+          setIsUnassignedTaskDropTarget(true);
+        }}
+        onDragLeave={(event) => {
+          if (event.currentTarget.contains(event.relatedTarget)) return;
+          setIsUnassignedTaskDropTarget(false);
+        }}
+        onDrop={unassignTask}
+      >
+        <div className="board-tasks-header">
+          <div>
+            <h2>Задачи</h2>
+            <p className="page-subtitle">Нераспределённые задачи можно перетащить в ячейки SQDCP-таблицы.</p>
           </div>
+          <button className="btn btn-primary" onClick={() => setShowTaskCreate(true)}>
+            <Plus size={18} style={{ verticalAlign: "middle", marginRight: 6 }} />
+            Добавить задачу
+          </button>
         </div>
-      )}
 
-      <div className="card" style={{ marginTop: "1.5rem" }}>
-        <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
-          <h2 style={{ fontSize: "1rem", margin: 0 }}>Трекер задач</h2>
-          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
-            <select className="input-sm" value={filterColumn} onChange={(e) => setFilterColumn(e.target.value)} style={{ fontSize: "0.78rem", padding: "3px 6px" }}>
-              <option value="all">Все</option>
-              {columns.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
-            </select>
-            <select className="input-sm" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} style={{ fontSize: "0.78rem", padding: "3px 6px" }}>
-              <option value="all">Все статусы</option>
-              <option value="todo">К выполнению</option>
-              <option value="in_progress">В работе</option>
-              <option value="done">Готово</option>
-            </select>
-            <button className="btn btn-primary btn-sm" onClick={() => openCreateTask(null, filterColumn === "all" ? "safety" : filterColumn)}>
-              <Plus size={14} style={{ verticalAlign: "middle", marginRight: 4 }} />
-              Задача
-            </button>
+        {unassignedTasks.length === 0 ? (
+          <div className="task-empty-state">Нераспределённых задач нет.</div>
+        ) : (
+          <div className="task-list">
+            {unassignedTasks.map((task) => (
+              <button
+                key={task.id}
+                type="button"
+                className={`task-card ${taskStatusClass(task)}`}
+                draggable
+                onDragStart={(event) => handleTaskDragStart(task, event)}
+                onDragEnd={handleTaskDragEnd}
+                onClick={() => setSelectedTask(task)}
+              >
+                <strong>{task.name}</strong>
+                {task.assignees && <span>{task.assignees}</span>}
+              </button>
+            ))}
           </div>
-        </div>
-        <div className="card-body" style={{ padding: "0.75rem" }}>
-          {filteredTasks.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "1.5rem", color: "var(--text-secondary)", fontSize: "0.85rem" }}>
-              Задач нет. Нажмите + на ячейке таблицы или кнопку «Задача».
-            </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-              {filteredTasks.map((task) => {
-                const StatusIcon = STATUS_ICONS[task.status] || Circle;
-                return (
-                  <div key={task.id} className="task-tracker-row" style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.4rem 0.6rem", background: "var(--bg-primary)", borderRadius: 6, fontSize: "0.82rem" }}>
-                    <button className="btn btn-ghost btn-sm" style={{ padding: 2, lineHeight: 1 }} onClick={() => updateTaskStatus(task, task.status === "done" ? "todo" : task.status === "todo" ? "in_progress" : "done")} title={STATUS_LABELS[task.status]}>
-                      <StatusIcon size={14} color={STATUS_COLORS[task.status]} />
-                    </button>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: task.status === "done" ? 400 : 500, textDecoration: task.status === "done" ? "line-through" : "none", color: task.status === "done" ? "var(--text-secondary)" : "inherit" }}>
-                        {task.title}
-                      </div>
-                      <div style={{ fontSize: "0.7rem", color: "var(--text-secondary)", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-                        <span>{DEFAULT_COLUMNS.find((c) => c.key === task.column_key)?.label || task.column_key}</span>
-                        {task.row_id && <span>— {getRowName(task.row_id)}</span>}
-                        {task.assignee && <span>— {task.assignee}</span>}
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
-                      <button className="btn btn-ghost btn-sm" style={{ padding: 2, lineHeight: 1 }} onClick={() => openEditTask(task)} title="Редактировать">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                      </button>
-                      <button className="btn btn-ghost btn-sm" style={{ padding: 2, lineHeight: 1 }} onClick={() => deleteTask(task.id)} title="Удалить">
-                        <Trash2 size={12} />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {showTaskModal && (
-        <div className="modal-overlay" onClick={() => setShowTaskModal(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 500, width: "100%" }}>
-            <h2>{editingTask ? "Редактировать задачу" : "Новая задача"}</h2>
-            <form onSubmit={submitTask}>
-              <div className="form-group">
-                <label>Название</label>
-                <input value={taskForm.title} onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })} required />
-              </div>
-              <div className="form-group">
-                <label>Описание</label>
-                <textarea value={taskForm.description} onChange={(e) => setTaskForm({ ...taskForm, description: e.target.value })} rows={4} style={{ resize: "vertical" }} />
-              </div>
-              <div style={{ display: "flex", gap: "0.75rem" }}>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label>Статус</label>
-                  <select value={taskForm.status} onChange={(e) => setTaskForm({ ...taskForm, status: e.target.value })}>
-                    <option value="todo">К выполнению</option>
-                    <option value="in_progress">В работе</option>
-                    <option value="done">Готово</option>
-                  </select>
-                </div>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label>Раздел</label>
-                  <select value={taskForm.column_key} onChange={(e) => setTaskForm({ ...taskForm, column_key: e.target.value })}>
-                    {columns.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="form-group">
-                <label>Строка (отдел)</label>
-                <select value={taskForm.row_id || ""} onChange={(e) => setTaskForm({ ...taskForm, row_id: e.target.value ? Number(e.target.value) : null })}>
-                  <option value="">Без строки</option>
-                  {rows.map((r) => <option key={r.id} value={r.id}>{r.team_name}</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Исполнитель</label>
-                <input value={taskForm.assignee} onChange={(e) => setTaskForm({ ...taskForm, assignee: e.target.value })} placeholder="ФИО" />
-              </div>
-              <div className="modal-actions">
-                <button type="button" className="btn btn-ghost" onClick={() => setShowTaskModal(false)}>Отмена</button>
-                <button type="submit" className="btn btn-primary">{editingTask ? "Сохранить" : "Создать"}</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+        )}
+      </section>
 
       {showDeleteConfirm && (
         <ConfirmDeleteModal
@@ -565,6 +636,133 @@ export default function BoardDetail() {
           onCancel={() => setShowDeleteConfirm(false)}
           onConfirm={deleteCurrentBoard}
         />
+      )}
+
+      {showDepartmentPicker && (
+        <div className="modal-overlay" onClick={() => setShowDepartmentPicker(false)}>
+          <div className="modal department-picker-modal" onClick={(event) => event.stopPropagation()}>
+            <h2>Добавить существующий отдел</h2>
+            {departments.length === 0 ? (
+              <p className="confirm-modal-copy">Пока нет созданных отделов.</p>
+            ) : (
+              <div className="department-picker-list">
+                {departments.map((department) => (
+                  <button
+                    key={department.id}
+                    type="button"
+                    className="department-picker-item"
+                    onClick={() => addDepartmentRow(department)}
+                  >
+                    <strong>{department.name}</strong>
+                    <span>{department.head || "Заведующий не указан"}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="modal-actions">
+              <button type="button" className="btn btn-ghost" onClick={() => setShowDepartmentPicker(false)}>
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTaskCreate && (
+        <div className="modal-overlay" onClick={() => setShowTaskCreate(false)}>
+          <div className="modal" onClick={(event) => event.stopPropagation()}>
+            <h2>Новая задача</h2>
+            <form onSubmit={createTask}>
+              <div className="form-group">
+                <label>Имя задачи</label>
+                <input
+                  value={taskForm.name}
+                  onChange={(event) => setTaskForm({ ...taskForm, name: event.target.value })}
+                  autoFocus
+                />
+              </div>
+              <div className="form-group">
+                <label>Описание задачи</label>
+                <textarea
+                  value={taskForm.description}
+                  onChange={(event) => setTaskForm({ ...taskForm, description: event.target.value })}
+                  rows={5}
+                />
+              </div>
+              <div className="form-group">
+                <label>Ответственные</label>
+                <input
+                  value={taskForm.assignees}
+                  onChange={(event) => setTaskForm({ ...taskForm, assignees: event.target.value })}
+                />
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="btn btn-ghost" onClick={() => setShowTaskCreate(false)}>
+                  Отмена
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Создать
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {selectedTask && (
+        <div className="modal-overlay" onClick={() => setSelectedTask(null)}>
+          <div className="modal" onClick={(event) => event.stopPropagation()}>
+            <h2>{selectedTask.name}</h2>
+            <div className="task-detail">
+              <div className="form-group">
+                <label>Степень выполнения</label>
+                <select
+                  value={normalizeTaskStatus(selectedTask.status)}
+                  onChange={(event) => updateSelectedTaskStatus(event.target.value)}
+                >
+                  {TASK_STATUSES.map((status) => (
+                    <option key={status.value} value={status.value}>{status.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <span>Описание задачи</span>
+                <p>{selectedTask.description || "Описание не указано."}</p>
+              </div>
+              <div>
+                <span>Ответственные</span>
+                <p>{selectedTask.assignees || "Ответственные не указаны."}</p>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-ghost" onClick={() => setSelectedTask(null)}>
+                Закрыть
+              </button>
+              <button type="button" className="btn btn-danger" onClick={deleteSelectedTask}>
+                Удалить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {blocker.state === "blocked" && (
+        <div className="modal-overlay">
+          <div className="modal confirm-modal">
+            <h2>Несохранённые изменения</h2>
+            <p className="confirm-modal-copy">
+              На доске есть изменения, которые ещё не сохранены. Что сделать перед выходом?
+            </p>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-ghost" onClick={discardAndLeaveBoard} disabled={saving}>
+                Отменить изменения
+              </button>
+              <button type="button" className="btn btn-primary" onClick={saveAndLeaveBoard} disabled={saving}>
+                {saving ? "Сохранение..." : "Сохранить изменения"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
