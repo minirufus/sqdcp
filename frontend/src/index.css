@@ -12,6 +12,7 @@
   --success: #22c55e;
   --warning: #f59e0b;
   --danger: #ef4444;
+  --header-sub: rgba(255,255,255,0.85);
 }
 
 :root[data-theme="light"] {
@@ -28,6 +29,7 @@
   --success: #3f8f62;
   --warning: #b9872f;
   --danger: #bf4b4b;
+  --header-sub: rgba(0,0,0,0.65);
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -662,7 +664,7 @@ td { font-size: 0.9rem; }
 
 .sqdcp-table th small {
   margin-top: 0.35rem;
-  color: rgba(255,255,255,0.85);
+  color: var(--header-sub);
   font-size: 0.85rem;
   font-weight: 500;
 }
@@ -694,11 +696,7 @@ td { font-size: 0.9rem; }
 
 .sqdcp-header-cost {
   background: #ca8a04 !important;
-  color: #111827;
-}
-
-.sqdcp-header-cost small {
-  color: rgba(17,24,39,0.78) !important;
+  color: #fff;
 }
 
 .sqdcp-header-people {
