@@ -89,7 +89,7 @@ export default function BoardDetail() {
   const [tasks, setTasks] = useState([]);
   const [showTaskCreate, setShowTaskCreate] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
-  const [selectedTaskForm, setSelectedTaskForm] = useState({ name: "", description: "", assignees: "" });
+  const [selectedTaskForm, setSelectedTaskForm] = useState({ name: "", description: "", assignees: "", depends_on: [] });
   const [taskForm, setTaskForm] = useState({ name: "", description: "", assignees: "" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -284,6 +284,7 @@ export default function BoardDetail() {
       name: task.name || "",
       description: task.description || "",
       assignees: task.assignees || "",
+      depends_on: task.depends_on || [],
     });
   };
 
@@ -315,12 +316,19 @@ export default function BoardDetail() {
 
     try {
       setError("");
-      const updatedTask = await api.updateBoardTask(id, selectedTask.id, selectedTaskForm);
+      const payload = {
+        name: selectedTaskForm.name,
+        description: selectedTaskForm.description,
+        assignees: selectedTaskForm.assignees,
+        depends_on: selectedTaskForm.depends_on,
+      };
+      const updatedTask = await api.updateBoardTask(id, selectedTask.id, payload);
       setSelectedTask(updatedTask);
       setSelectedTaskForm({
         name: updatedTask.name || "",
         description: updatedTask.description || "",
         assignees: updatedTask.assignees || "",
+        depends_on: updatedTask.depends_on || [],
       });
       setTasks((currentTasks) => currentTasks.map((task) => (
         task.id === updatedTask.id ? updatedTask : task
@@ -771,6 +779,11 @@ export default function BoardDetail() {
                     <option key={status.value} value={status.value}>{status.label}</option>
                   ))}
                 </select>
+                {selectedTask.completed_at && (
+                  <small style={{ display: "block", marginTop: "0.35rem", color: "var(--text-secondary)", fontSize: "0.8rem" }}>
+                    Выполнена: {new Date(selectedTask.completed_at).toLocaleString("ru")}
+                  </small>
+                )}
               </div>
               <div className="form-group">
                 <label>Описание задачи</label>
@@ -786,6 +799,42 @@ export default function BoardDetail() {
                   value={selectedTaskForm.assignees}
                   onChange={(event) => setSelectedTaskForm({ ...selectedTaskForm, assignees: event.target.value })}
                 />
+              </div>
+              <div className="form-group">
+                <label>Зависимости (задачи, которые должны быть выполнены)</label>
+                {tasks.filter((t) => t.id !== selectedTask.id).length > 0 ? (
+                  <div style={{ display: "grid", gap: "0.3rem", maxHeight: "160px", overflowY: "auto", padding: "0.25rem 0" }}>
+                    {tasks.filter((t) => t.id !== selectedTask.id).map((t) => {
+                      const checked = selectedTaskForm.depends_on?.includes(t.id) || false;
+                      return (
+                        <label key={t.id} style={{
+                          display: "flex", alignItems: "center", gap: "0.5rem",
+                          padding: "0.3rem 0.5rem", borderRadius: "6px",
+                          background: "var(--bg-primary)", cursor: "pointer",
+                          fontSize: "0.85rem",
+                        }}>
+                          <input type="checkbox" checked={checked}
+                            onChange={() => {
+                              const deps = selectedTaskForm.depends_on || [];
+                              if (checked) {
+                                setSelectedTaskForm({ ...selectedTaskForm, depends_on: deps.filter((d) => d !== t.id) });
+                              } else {
+                                setSelectedTaskForm({ ...selectedTaskForm, depends_on: [...deps, t.id] });
+                              }
+                            }}
+                          />
+                          <span style={{
+                            width: 8, height: 8, borderRadius: "50%", display: "inline-block", flexShrink: 0,
+                            background: t.status === "done" ? "var(--success)" : t.status === "in_progress" ? "var(--warning)" : "var(--danger)",
+                          }} />
+                          {t.name}
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p style={{ color: "var(--text-secondary)", fontSize: "0.85rem" }}>Нет других задач на доске</p>
+                )}
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-ghost" onClick={() => setSelectedTask(null)}>

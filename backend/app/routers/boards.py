@@ -1,3 +1,4 @@
+import json
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import date, datetime
@@ -32,6 +33,8 @@ def serialize_task(task):
         "description": task.description or "",
         "assignees": task.assignees or "",
         "status": normalize_task_status(task.status),
+        "completed_at": task.completed_at.isoformat() if task.completed_at else None,
+        "depends_on": json.loads(task.depends_on) if task.depends_on else [],
     }
 
 
@@ -273,12 +276,28 @@ def update_board_task(board_id, task_id):
     if "assignees" in data:
         task.assignees = (data.get("assignees") or "").strip()
     if "status" in data:
-        status = (data.get("status") or "").strip()
-        if status not in TASK_STATUSES:
+        new_status = (data.get("status") or "").strip()
+        if new_status not in TASK_STATUSES:
             return jsonify({"error": "Некорректный статус задачи"}), 400
-        task.status = status
+
+        if new_status == "done":
+            deps = json.loads(task.depends_on) if task.depends_on else []
+            if deps:
+                incomplete = Task.query.filter(Task.id.in_(deps), Task.status != "done").count()
+                if incomplete > 0:
+                    return jsonify({"error": "Не все зависимые задачи выполнены"}), 400
+            task.completed_at = datetime.utcnow()
+        elif task.status == "done" and new_status != "done":
+            task.completed_at = None
+
+        task.status = new_status
     if "row_id" in data or "column_key" in data:
         apply_task_assignment(task, board.id, data.get("row_id"), data.get("column_key"))
+    if "depends_on" in data:
+        deps = data["depends_on"]
+        if not isinstance(deps, list):
+            return jsonify({"error": "depends_on должен быть списком"}), 400
+        task.depends_on = json.dumps(deps)
 
     db.session.commit()
     return jsonify(serialize_task(task))

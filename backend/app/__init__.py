@@ -89,3 +89,7 @@ def ensure_task_columns():
             connection.execute(text("ALTER TABLE tasks ADD COLUMN department_id INTEGER"))
         if "status" not in existing_columns:
             connection.execute(text("ALTER TABLE tasks ADD COLUMN status VARCHAR(20) DEFAULT 'not_started'"))
+        if "completed_at" not in existing_columns:
+            connection.execute(text("ALTER TABLE tasks ADD COLUMN completed_at DATETIME"))
+        if "depends_on" not in existing_columns:
+            connection.execute(text("ALTER TABLE tasks ADD COLUMN depends_on TEXT DEFAULT '[]'"))

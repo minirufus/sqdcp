@@ -1,4 +1,5 @@
 from app import db
+from datetime import datetime
 
 
 class Task(db.Model):
@@ -13,3 +14,5 @@ class Task(db.Model):
     description = db.Column(db.Text, default="")
     assignees = db.Column(db.Text, default="")
     status = db.Column(db.String(20), default="not_started")
+    completed_at = db.Column(db.DateTime, nullable=True)
+    depends_on = db.Column(db.Text, default="[]")
