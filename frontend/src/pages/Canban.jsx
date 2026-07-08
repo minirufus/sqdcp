@@ -209,12 +209,15 @@ export default function Canban() {
         </div>
         <div className="form-group" style={{ marginBottom: 0 }}>
           <label>Дата выполнения</label>
-          <label className="date-picker-control">
+          <label className="date-picker-control" style={{ cursor: "pointer" }}>
             <CalendarDays size={18} />
             <input
               type="date"
               value={kanbanDate}
+              readOnly
+              onClick={(e) => e.target.showPicker()}
               onChange={(e) => setKanbanDate(e.target.value)}
+              style={{ cursor: "pointer" }}
             />
           </label>
         </div>
