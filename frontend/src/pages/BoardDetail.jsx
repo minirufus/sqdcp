@@ -68,7 +68,7 @@ function createRowsPayload(rows) {
 }
 
 function normalizeColumns(columns) {
-  return (columns?.length ? columns : DEFAULT_COLUMNS).filter((column) => column.key !== "people");
+  return columns?.length ? columns : DEFAULT_COLUMNS;
 }
 
 function normalizeTaskStatus(status) {
