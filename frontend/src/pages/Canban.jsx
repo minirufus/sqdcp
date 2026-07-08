@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
+import { CalendarDays } from "lucide-react";
 
 const TASK_STATUSES = [
   { value: "not_started", label: "не начата", columnLabel: "Не начатые" },
@@ -209,6 +210,7 @@ export default function Canban() {
         <div className="form-group" style={{ marginBottom: 0 }}>
           <label>Дата выполнения</label>
           <label className="date-picker-control">
+            <CalendarDays size={18} />
             <input
               type="date"
               value={kanbanDate}
